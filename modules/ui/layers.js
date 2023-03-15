@@ -456,6 +456,8 @@ function toggleBiomes(event) {
 }
 
 function drawBiomes() {
+  pixiapp.drawPixiCells({ drawBiomes: true });
+
   biomes.selectAll("path").remove();
   const cells = pack.cells,
     vertices = pack.vertices,
@@ -646,6 +648,8 @@ function toggleCells(event) {
 }
 
 function drawCells() {
+  pixiapp.drawPixiCells({ drawCells: true });
+
   cells.selectAll("path").remove();
   const data = customization === 1 ? grid.cells.i : pack.cells.i;
   const polygon = customization === 1 ? getGridPolygon : getPackPolygon;
@@ -945,6 +949,8 @@ function toggleStates(event) {
 }
 
 function drawStates() {
+  pixiapp.drawPixiCells({ drawStates: true });
+
   TIME && console.time("drawStates");
   regions.selectAll("path").remove();
 

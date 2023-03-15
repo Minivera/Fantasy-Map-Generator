@@ -141,6 +141,7 @@ legend
   .on("click", () => clearLegend());
 
 // main data variables
+let pixiapp = null;
 let grid = {}; // initial graph based on jittered square grid and data
 let pack = {}; // packed graph and data
 let seed;
@@ -707,6 +708,7 @@ async function generate(options) {
     generatePrecipitation();
 
     reGraph();
+    pixiapp = new PixiRenderer();
     drawCoastline();
 
     Rivers.generate();

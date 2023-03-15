@@ -2343,3 +2343,8 @@ svg.button {
         background: #25252a;
     }
 }
+
+canvas {
+  position: absolute;
+  right: 0;
+}
