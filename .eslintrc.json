@@ -1,0 +1,69 @@
+{
+  "extends": [
+    "standard",
+    "prettier",
+    "plugin:react/recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "ignorePatterns": ["old"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "jsx": true,
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
+  "rules": {
+    "no-var": "error", // optional, recommended when using es6+
+    "no-unused-vars": 1, // recommended
+    "arrow-spacing": ["error", { "before": true, "after": true }], // recommended
+    "comma-dangle": [
+      "error",
+      {
+        "objects": "only-multiline",
+        "arrays": "only-multiline",
+        "imports": "only-multiline",
+        "exports": "only-multiline",
+        "functions": "only-multiline"
+      }
+    ],
+    "curly": ["error", "all"],
+
+    // options to emulate prettier setup
+    "semi": ["error", "always"],
+    "max-len": "off",
+    "template-curly-spacing": ["error", "never"],
+    "arrow-parens": ["error", "as-needed"],
+    "indent": "off",
+
+    // standard.js
+    "space-before-function-paren": [
+      "error",
+      {
+        "named": "never",
+        "anonymous": "always",
+        "asyncArrow": "always"
+      }
+    ],
+
+    // Typescript
+    "@typescript-eslint/no-empty-function": "off",
+
+    // note you must disable the base rule as it can report incorrect errors
+    "no-use-before-define": "off",
+    "@typescript-eslint/no-use-before-define": ["error"],
+
+    // react plugin - options
+    "react/jsx-uses-react": "error",
+    "react/jsx-uses-vars": "error",
+    "react/prop-types": "off",
+    "react/react-in-jsx-scope": "off"
+  },
+  "settings": {
+    "import/parsers": {
+      "@typescript-eslint/parser": [".ts", ".tsx"]
+    },
+    "react": {
+      "version": "detect"
+    }
+  }
+}
