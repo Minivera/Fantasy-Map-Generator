@@ -71,14 +71,16 @@ export const setClimateData = (
     }
 
     // lake outlet cell
-    feature.outCell =
-      feature.shoreline[
-        d3.leastIndex(
-          feature.shoreline,
-          (a, b) => heights[a] - heights[b]
-        ) as number
-      ];
-    lakeOutCells[feature.outCell] = feature.index;
+    const outCellIndex = d3.leastIndex(
+      feature.shoreline,
+      (a, b) => heights[a] - heights[b]
+    );
+    feature.outCell = outCellIndex
+      ? feature.shoreline[outCellIndex]
+      : undefined;
+    if (feature.outCell) {
+      lakeOutCells[feature.outCell] = feature.index;
+    }
   });
 
   return lakeOutCells;

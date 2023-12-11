@@ -4,7 +4,7 @@ import {
   HeightmapTemplate,
   heightmapTemplates,
 } from '../data/heightmapTemplates.ts';
-import { Grid, PackedGrid } from '../types/grid.ts';
+import { FeatureGroup, Grid, PackedGrid } from '../types/grid.ts';
 import {
   getIndexFromProbabilityArray,
   probability,
@@ -137,7 +137,14 @@ export class Generator {
       mapLatitude,
       vertices,
       cells: finalCells,
-      features: [],
+      features: grid.features.map(feature => ({
+        ...feature,
+        cellsCount: 0,
+        firstCell: 0,
+        group: FeatureGroup.ISLE,
+        vertices: [],
+        area: 0,
+      })),
     };
 
     // Redo all the features like rivers and lakes now that we have a more complete data set for each cells.

@@ -312,7 +312,7 @@ const defineCoastline = (
       // cells adjacent to vertex
       const c = vertices.adjacent[current];
       // neighboring vertices
-      const v = vertices.adjacent[current];
+      const v = vertices.neighbours[current];
 
       const c0 = c[0] >= n || cells.types[c[0]] === t;
       const c1 = c[1] >= n || cells.types[c[1]] === t;
