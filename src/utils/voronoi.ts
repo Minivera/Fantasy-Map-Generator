@@ -139,8 +139,8 @@ export const voronoi = (
 ) => {
   const cells: Cells = {
     indexes: createTypedArray({
-      maxValue: points.length,
-      length: points.length,
+      maxValue: pointsN,
+      length: pointsN,
     }),
     vertices: [],
     adjacentCells: [],

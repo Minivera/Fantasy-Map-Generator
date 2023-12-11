@@ -37,3 +37,10 @@ export const gauss = (
 export const limitTo100 = (value: number): number => {
   return clamp(value, 0, 100);
 };
+
+/**
+ * Normalizes the given number by limiting it between the min and max value so it won't overflow either way.
+ */
+export const normalize = (val: number, min: number, max: number) => {
+  return clamp((val - min) / (max - min), 0, 1);
+};

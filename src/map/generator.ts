@@ -11,14 +11,17 @@ import {
 } from '../utils/probability.ts';
 import { gauss, roundNumber } from '../utils/math.ts';
 
-import { generateGrid, reVoronoi } from './grid.ts';
+import { generateGrid, rankCells, reVoronoi } from './grid.ts';
 import { generateHeightmap } from './heightmap.ts';
-import { markFeatures } from './features.ts';
+import { markFeatures, reMarkFeatures } from './features.ts';
 import { Coordinates, generateClimate } from './temperature.ts';
+import { generateRivers } from './rivers.ts';
+import { defineLakeGroup } from './lakes.ts';
+import { defineBiomes } from './biomes.ts';
 
 export class Generator {
   private readonly seed: string;
-  private readonly randomizer: ReturnType<typeof Alea>;
+  public readonly randomizer: ReturnType<typeof Alea>;
 
   constructor(seed?: string) {
     this.seed = seed ?? String(Math.floor(Math.random() * 1e9));
@@ -77,6 +80,7 @@ export class Generator {
      */
     resolveDepressionsSteps: number;
   }) {
+    // Generate a cell grid first, all cells are flat. This gives us a good base to start working on.
     const grid = generateGrid(this.randomizer, options);
 
     const templatesArray = Object.values(heightmapTemplates);
@@ -84,6 +88,7 @@ export class Generator {
       templatesArray[
         getIndexFromProbabilityArray(this.randomizer, templatesArray)
       ];
+    // Apply the heightmap on the cell grid to generate terrain
     grid.cells.heights = generateHeightmap(
       this.randomizer,
       grid,
@@ -91,8 +96,10 @@ export class Generator {
       options
     );
 
+    // Start marking the base features based on the template options
     markFeatures(grid, heightmapTemplate, options);
 
+    // Define the map size and figure out where this map fits on a globe.
     const [mapSize, mapLatitude] = this.defineMapSize(grid, heightmapTemplate);
 
     const latitudeT = roundNumber((mapSize / 100) * 180, 1);
@@ -117,10 +124,33 @@ export class Generator {
       longitudeE: longitude,
     };
 
+    // Generate the climate based on the map's position on the globe
     generateClimate(this.randomizer, grid, mapCoordinates, options);
 
-    const [vertices, finalCells] = reVoronoi(grid);
-    // TODO: Need to extract the coastline drawing code to set the complete feature data
+    // Finalize the cells by running voronoi again now that we have all the physical geography in place
+    const [finalCells, vertices] = reVoronoi(grid);
+
+    // Pack all this new info in a complete packed grid with advanced types
+    const packedGrid: PackedGrid = {
+      ...grid,
+      mapSize,
+      mapLatitude,
+      vertices,
+      cells: finalCells,
+      features: [],
+    };
+
+    // Redo all the features like rivers and lakes now that we have a more complete data set for each cells.
+    reMarkFeatures(packedGrid, options);
+    generateRivers(packedGrid, options);
+    defineLakeGroup(packedGrid);
+
+    // Define the biome for each cell now that we know everything about it's physical components
+    defineBiomes(packedGrid);
+
+    // Define the suitability and general population of the cell.
+    // TODO: Right now this is considered a part of the physical geography of the map. Make more customizable.
+    rankCells(packedGrid);
 
     return {
       ...grid,

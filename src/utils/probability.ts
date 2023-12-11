@@ -35,6 +35,12 @@ export const randomRange = (
   if (!max && min) {
     realMax = min;
     realMin = 0;
+  } else if (!min && max) {
+    realMax = max;
+    realMin = 0;
+  } else {
+    realMax = max as number;
+    realMin = min as number;
   }
 
   return Math.floor(randomizer() * (realMax - realMin + 1)) + realMin;

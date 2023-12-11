@@ -626,7 +626,7 @@ const fromTemplate = (
 ) => {
   const { cells, points } = grid;
 
-  const heights = cells.heights
+  const heights = cells.heights.length
     ? Uint8Array.from(cells.heights)
     : createTypedArray({ maxValue: 100, length: points.length });
   const blobPower = getBlobPower(options.cellsToGenerate);

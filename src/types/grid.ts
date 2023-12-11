@@ -4,6 +4,7 @@ import { Quadtree } from 'd3-quadtree';
  * Describes the type of cell, either a land cell for a landmass or a water cells from the water next to a landmass.
  */
 export enum CellType {
+  Highland = 2,
   Land = 1,
   Water = -1,
 }
@@ -18,6 +19,24 @@ export enum FeatureType {
   LAKE = 'lake',
 }
 
+export enum FeatureGroup {
+  OCEAN = 'ocean',
+  SEA = 'sea',
+  GULF = 'gulf',
+  LAKEISLAND = 'lake_island',
+  CONTINENT = 'continent',
+  ISLAND = 'island',
+  ISLE = 'isle',
+}
+
+export enum LakeFeatureGroup {
+  FROZEN = 'frozen',
+  LAVA = 'lava',
+  DRY = 'dry',
+  SALT = 'salt',
+  FRESHWATER = 'freshwater',
+}
+
 /**
  * Describes a map feature to make handling each cell feature easier. We'll assign one of those features to every cell
  * to describe if it is a lake, a landmass, or the ocean.
@@ -27,16 +46,47 @@ export interface Feature {
   isLand?: boolean;
   isBorder?: boolean;
   type: FeatureType;
+}
 
+/**
+ * Packed version of a feature that includes additional properties that can only be computed once the grid has been
+ * converted into a packed grid. Additional feature types should extend this type, not the first level Feature type.
+ */
+export interface PackedFeature extends Feature {
+  /**
+   * The number of cells making up this feature, for reference to figure out how big the feature is.
+   */
+  cellsCount: number;
+
+  /**
+   * The index of the first cell used to generate this feature.
+   */
+  firstCell: number;
+
+  /**
+   * Defines the specific feature group for the feature's type, which helps further define the type of
+   * feature this represents.
+   */
+  group: FeatureGroup;
+
+  /**
+   * Vertices that make up this feature.
+   */
   vertices: number[];
+
+  /**
+   * The total land area taken by this feature, helpful to find large features or compute rulers.
+   */
+  area: number;
 }
 
 /**
  * The definition for a lake feature, which includes a few more properties than normal features.
  * TODO: Lots of these are not used or mis-used, cleanup.
  */
-export interface LakeFeature extends Feature {
+export interface LakeFeature extends Omit<PackedFeature, 'group'> {
   type: FeatureType.LAKE;
+  group: LakeFeatureGroup;
 
   /**
    * Water flux of the lake.
@@ -101,6 +151,53 @@ export interface LakeFeature extends Feature {
  */
 export interface River {
   index: number;
+
+  /**
+   * The cell source of this river, where this river originated.
+   */
+  source: number;
+
+  /**
+   * The mouth of the river, which is one cell off of the final river cell, which should usually be
+   * a water cell.
+   */
+  mouth: number;
+
+  /**
+   * How much water this river discharges into its output water feature in m³ per second.
+   */
+  discharge: number;
+
+  /**
+   * The length of the river from the source to its mouth.
+   */
+  length: number;
+
+  /**
+   * The average width of this rivers throughout its cells.
+   */
+  width: number;
+
+  /**
+   * How much this rivers grows or shrinks as you navigate up or down the river.
+   */
+  widthFactor: number;
+
+  /**
+   * The width of the source of this river, usually 0 if it originates from a land cell.
+   */
+  sourceWidth: number;
+
+  /**
+   * The id of the river's parent if any. The ID will be 0 if the river has no parent (it's a root river).
+   */
+  parent: number;
+
+  /**
+   * The list of cells that make up this river. The river is configured to meander throughout its cells to give the
+   * appearance of a real river and not a straight line.
+   */
+  cells: number[];
 }
 
 /**
@@ -156,7 +253,7 @@ export interface Cells {
   precipitation: Uint8Array;
 
   /**
-   * Array of water flux values for each cell, useful to generate rivers and biomes.
+   * Array of water flux values for each cell, useful to generate rivers and biomes, in m³ per second.
    */
   waterFlux: Uint16Array;
 
@@ -169,7 +266,7 @@ export interface Cells {
   /**
    * Array of confluence for rivers, this describes when two or more rivers merge into one another.
    */
-  confluences: Uint8Array;
+  confluences: Uint8Array | Uint16Array;
 }
 
 export interface PackedCells extends Cells {
@@ -185,6 +282,18 @@ export interface PackedCells extends Cells {
   gridIndex: Uint32Array | Uint8Array | Uint16Array;
 
   /**
+   * Array of cell indexes that points towards the opposite water cell of the given land cell, helps with
+   * figuring out where to go to access the sea the fastest from a cell.
+   */
+  haven: Uint16Array | Uint32Array;
+
+  /**
+   * Array that contains the number of adjacent water cells to a given cell, if any. Helps with figuring out
+   * where to position a "harbor" for features.
+   */
+  harbor: Uint8Array;
+
+  /**
    * Tree of quads generates by d3, useful for drawing the map.
    */
   quads: Quadtree<[number, number, number]>;
@@ -193,6 +302,23 @@ export interface PackedCells extends Cells {
    * Array of polygon areas for each cell. Use the array index to find out the general size of the cell's polygon.
    */
   area: Uint32Array | Uint8Array | Uint16Array;
+
+  /**
+   * Array of biome IDs for each cell, which maps with the defined biomes for the current grid.
+   */
+  biomes: Uint8Array;
+
+  /**
+   * Array of suitability for humans on each cell. Ranks the suitability as a weight to determine population
+   * and culture generation.
+   */
+  suitability: Int16Array;
+
+  /**
+   * Array of population count (unit is a thousand people) for each cell, which will be used to determine the
+   * settlements placement and other cultural generation.
+   */
+  populations: Float32Array;
 }
 
 /**
@@ -235,11 +361,13 @@ export interface Grid {
 
 /**
  * The final definition for a grid, once all the calculations have been done. This grid has had multiple runs of the
- * Voronois algorithm run on it and should be final.
+ * Voronoi algorithm run on it and should be final.
  */
 export interface PackedGrid extends Grid {
   mapSize: number;
   mapLatitude: number;
 
   cells: PackedCells;
+  features: PackedFeature[];
+  ruler?: [[number, number], [number, number]];
 }

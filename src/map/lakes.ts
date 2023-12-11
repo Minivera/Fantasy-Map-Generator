@@ -1,6 +1,11 @@
 import * as d3 from 'd3-array';
 
-import { LakeFeature, PackedGrid } from '../types/grid.ts';
+import {
+  FeatureType,
+  LakeFeature,
+  LakeFeatureGroup,
+  PackedGrid,
+} from '../types/grid.ts';
 import { roundNumber } from '../utils/math.ts';
 
 /**
@@ -10,9 +15,11 @@ const getShoreline = (grid: PackedGrid, lake: LakeFeature) => {
   const uniqueCells = new Set<number>();
 
   lake.vertices.forEach(v =>
-    grid.vertices.adjacent[v].forEach(
-      c => grid.cells.heights[c] >= 20 && uniqueCells.add(c)
-    )
+    grid.vertices.adjacent[v].forEach(c => {
+      if (grid.cells.heights[c] >= 20) {
+        uniqueCells.add(c);
+      }
+    })
   );
 
   return [...uniqueCells];
@@ -31,11 +38,11 @@ export const setClimateData = (
   const lakeOutCells = new Uint16Array(cells.indexes.length);
 
   grid.features.forEach(f => {
-    if (f.type !== 'lake') {
+    if (f.type !== FeatureType.LAKE) {
       return;
     }
 
-    const feature = f as LakeFeature;
+    const feature = f as unknown as LakeFeature;
 
     // default flux: sum of precipitation around lake
     feature.flux = feature.shoreline.reduce(
@@ -93,7 +100,7 @@ export const prepareLakeData = (
       return;
     }
 
-    const feature = f as LakeFeature;
+    const feature = f as unknown as LakeFeature;
 
     feature.flux = 0;
     delete feature.inlets;
@@ -135,7 +142,7 @@ export const prepareLakeData = (
           const nFeature = grid.features[cells.features[n]];
           if (
             nFeature.type === 'ocean' ||
-            feature.height > (nFeature as LakeFeature).height
+            feature.height > (nFeature as unknown as LakeFeature).height
           ) {
             deep = false;
             break;
@@ -160,7 +167,7 @@ export const cleanupLakeData = (grid: PackedGrid) => {
       continue;
     }
 
-    const feature = f as LakeFeature;
+    const feature = f as unknown as LakeFeature;
 
     delete feature.river;
     delete feature.enteringFlux;
@@ -186,24 +193,42 @@ export const cleanupLakeData = (grid: PackedGrid) => {
   }
 };
 
-export const getGroup = (feature: LakeFeature) => {
+/**
+ * Gets the more complete group type for the lake, defining what type of lake it is for drawing.
+ */
+export const getGroup = (feature: LakeFeature): LakeFeatureGroup => {
   if (feature.temperature < -3) {
-    return 'frozen';
+    return LakeFeatureGroup.FROZEN;
   }
 
   if (feature.height > 60) {
-    return 'lava';
+    return LakeFeatureGroup.LAVA;
   }
 
   if (!feature.inlets && !feature.outlet) {
     if (feature.evaporation > feature.flux * 4) {
-      return 'dry';
+      return LakeFeatureGroup.DRY;
     }
   }
 
   if (!feature.outlet && feature.evaporation > feature.flux) {
-    return 'salt';
+    return LakeFeatureGroup.SALT;
   }
 
-  return 'freshwater';
+  return LakeFeatureGroup.FRESHWATER;
+};
+
+/**
+ * Defines the groups for all lakes in the grid, giving them a more specific lake type to draw.
+ */
+export const defineLakeGroup = (grid: PackedGrid) => {
+  for (const feature of grid.features) {
+    if (feature.type !== FeatureType.LAKE) {
+      continue;
+    }
+
+    const lakeFeature = feature as unknown as LakeFeature;
+
+    lakeFeature.group = getGroup(lakeFeature);
+  }
 };

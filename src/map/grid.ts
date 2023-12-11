@@ -1,12 +1,23 @@
 import Alea from 'alea';
 import Delaunator from 'delaunator';
+import * as d3Array from 'd3-array';
 import * as d3QuadTree from 'd3-quadtree';
 import * as d3Polygon from 'd3-polygon';
 
-import { roundNumber } from '../utils/math.ts';
+import { normalize, roundNumber } from '../utils/math.ts';
 import { voronoi } from '../utils/voronoi.ts';
-import { CellType, Grid, PackedCells } from '../types/grid.ts';
+import {
+  CellType,
+  FeatureType,
+  Grid,
+  LakeFeature,
+  LakeFeatureGroup,
+  PackedCells,
+  PackedGrid,
+  Vertices,
+} from '../types/grid.ts';
 import { createTypedArray, UINT16_MAX } from '../utils/arrays.ts';
+import { biomeHabitability } from '../data/biomes.ts';
 
 /**
  * Add points to the edge of the map to clip the voronoi generation, which should allow us to create good looking
@@ -132,6 +143,7 @@ export const generateGrid = (
     cells,
     vertices,
     features: [],
+    rivers: [],
   };
 };
 
@@ -139,7 +151,7 @@ export const generateGrid = (
  * Recalculate the Voronoi Graph or the grid to generate the final cells now that a lot of the features and terrain
  * has been generated.
  */
-export const reVoronoi = (grid: Grid) => {
+export const reVoronoi = (grid: Grid): [PackedCells, Vertices] => {
   const { cells: gridCells, points } = grid;
   // store new data
   const newCells: {
@@ -202,6 +214,10 @@ export const reVoronoi = (grid: Grid) => {
 
   const finalCells: PackedCells = {
     ...packCells,
+    // Carry over old grid data
+    precipitation: grid.cells.precipitation,
+    temperatures: grid.cells.temperatures,
+    // New packed data
     points: newCells.points,
     gridIndex: createTypedArray({
       maxValue: grid.points.length,
@@ -220,9 +236,97 @@ export const reVoronoi = (grid: Grid) => {
         return Math.min(area, UINT16_MAX);
       }),
     }),
+    haven: new Uint16Array(packCells.indexes.length),
+    harbor: new Uint8Array(packCells.indexes.length),
+    biomes: new Uint8Array(packCells.indexes.length),
+    suitability: new Int16Array(packCells.indexes.length),
+    populations: new Float32Array(packCells.indexes.length),
   };
 
   return [finalCells, vertices];
+};
+
+/**
+ * Ranks each cell to calculate the base suitability for humans, then calculate population. This will be used to generate
+ * things like cultures and settlements.
+ * TODO: Allow for different culture types to have different preferences
+ */
+export const rankCells = (grid: PackedGrid) => {
+  const { cells, features } = grid;
+  // cell suitability array
+  cells.suitability = new Int16Array(cells.indexes.length);
+  // cell population array
+  cells.populations = new Float32Array(cells.indexes.length);
+
+  const flMean = d3Array.median(cells.waterFlux.filter(f => f)) || 0;
+  // to normalize flux
+  const flMax =
+    (d3Array.max(cells.waterFlux) as number) +
+    (d3Array.max(cells.confluences) as number);
+  // to adjust population by cell area
+  const areaMean = d3Array.mean(cells.area) as number;
+
+  for (const i of cells.indexes) {
+    // no population in water
+    if (cells.heights[i] < 20) {
+      continue;
+    }
+
+    // base suitability derived from biome habitability
+    let s = +biomeHabitability[cells.biomes[i]];
+
+    // uninhabitable biomes has 0 suitability
+    if (!s) {
+      continue;
+    }
+
+    // big rivers and confluences are valued
+    if (flMean) {
+      s +=
+        normalize(cells.waterFlux[i] + cells.confluences[i], flMean, flMax) *
+        250;
+    }
+    // low elevation is valued, high is not;
+    s -= (cells.heights[i] - 50) / 5;
+
+    if (cells.types[i] === CellType.Land) {
+      // estuary is valued
+      if (cells.rivers[i]) {
+        s += 15;
+      }
+
+      const feature = features[cells.features[cells.haven[i]]];
+      if (feature.type === FeatureType.LAKE) {
+        const lakeFeature = feature as unknown as LakeFeature;
+        if (lakeFeature.group === LakeFeatureGroup.FRESHWATER) {
+          s += 30;
+        } else if (lakeFeature.group === LakeFeatureGroup.SALT) {
+          s += 10;
+        } else if (lakeFeature.group === LakeFeatureGroup.FROZEN) {
+          s += 1;
+        } else if (lakeFeature.group === LakeFeatureGroup.DRY) {
+          s -= 5;
+        } else if (lakeFeature.group === LakeFeatureGroup.LAVA) {
+          s -= 30;
+        }
+      } else {
+        // ocean coast is valued
+        s += 5;
+        // safe sea harbor is valued
+        if (cells.harbor[i] === 1) {
+          s += 20;
+        }
+      }
+    }
+
+    // general population rate
+    cells.suitability[i] = s / 5;
+    // cell rural population is suitability adjusted by cell area
+    cells.populations[i] =
+      cells.suitability[i] > 0
+        ? (cells.suitability[i] * cells.area[i]) / areaMean
+        : 0;
+  }
 };
 
 /**

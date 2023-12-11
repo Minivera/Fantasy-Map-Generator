@@ -12,6 +12,12 @@
     "ecmaVersion": 2022,
     "sourceType": "module"
   },
+  "env": {
+    "node": true,
+    "commonjs": true,
+    "browser": true,
+    "es6": true
+  },
   "rules": {
     "no-var": "error", // optional, recommended when using es6+
     "no-unused-vars": 1, // recommended
