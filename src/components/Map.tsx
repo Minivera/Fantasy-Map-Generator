@@ -1,49 +1,66 @@
-import { FunctionComponent, useEffect, useRef, useState } from 'react';
-import Two from 'two.js';
+import { FunctionComponent, useCallback } from 'react';
+import { Graphics as GraphicsType } from 'pixi.js';
+import '@pixi/graphics-extras';
+import { Stage, Graphics } from '@pixi/react';
 
 import { PackedGrid } from '../types/grid.ts';
 import { biomeColor } from '../data/biomes.ts';
+import { ZoomUIContainer } from './ZoomUIContainer.tsx';
 
-export const Map: FunctionComponent<{
+interface MapProps {
   physicalMap: PackedGrid | null;
   graphHeight: number;
   graphWidth: number;
-}> = ({ physicalMap, graphHeight, graphWidth }) => {
-  const two = useRef(
-    new Two({
-      type: Two.Types.webgl,
-      fullscreen: true,
-      autostart: true,
-      height: graphHeight,
-      width: graphWidth,
-    })
-  );
-  const canvasRef = useRef<HTMLDivElement>(null);
+}
 
-  const [appended, setAppended] = useState(false);
+export const Map: FunctionComponent<MapProps> = ({
+  physicalMap,
+  graphHeight,
+  graphWidth,
+}) => {
+  const drawCells = useCallback(
+    (g: GraphicsType) => {
+      if (!physicalMap) {
+        return;
+      }
 
-  useEffect(() => {
-    if (physicalMap && canvasRef.current && !appended) {
-      two.current.appendTo(canvasRef.current);
+      g.clear();
 
       // Start by drawing all the cells
       // TODO: Extract all this logic when the drawing is finalized
       physicalMap.cells.vertices.forEach((cellVertices, i) => {
-        const anchors = cellVertices.map(vertex => {
-          const point = physicalMap.vertices.coordinates[vertex];
-          return new Two.Anchor(point[0], point[1]);
+        g.beginFill(biomeColor[physicalMap.cells.biomes[i]]);
+        g.lineStyle(0.1, 0x808080, 1);
+
+        const [start, ...rest] = cellVertices;
+        g.moveTo(
+          physicalMap.vertices.coordinates[start][0],
+          physicalMap.vertices.coordinates[start][1]
+        );
+
+        rest.forEach(vertex => {
+          g.lineTo(
+            physicalMap.vertices.coordinates[vertex][0],
+            physicalMap.vertices.coordinates[vertex][1]
+          );
         });
 
-        const cellPath = two.current.makePath(anchors);
-        cellPath.stroke = '#808080';
-        cellPath.linewidth = 0.1;
-        cellPath.fill = biomeColor[physicalMap.cells.biomes[i]];
+        g.closePath();
+        g.endFill();
       });
+    },
+    [physicalMap]
+  );
 
-      two.current.update();
-      setAppended(true);
-    }
-  }, [canvasRef, physicalMap, two, appended]);
+  if (!physicalMap) {
+    return null;
+  }
 
-  return <div id="two-canvas" ref={canvasRef} />;
+  return (
+    <Stage width={graphWidth} height={graphHeight}>
+      <ZoomUIContainer>
+        <Graphics draw={drawCells} />
+      </ZoomUIContainer>
+    </Stage>
+  );
 };
