@@ -15,6 +15,7 @@ import {
   PackedCells,
   PackedGrid,
   Vertices,
+  Point,
 } from '../types/grid.ts';
 import { createTypedArray, UINT16_MAX } from '../utils/arrays.ts';
 import { biomeHabitability } from '../data/biomes.ts';
@@ -32,7 +33,7 @@ const getBoundaryPoints = (width: number, height: number, spacing: number) => {
   const pointsOnX = Math.ceil(widthOffset / powerSpacing) - 1;
   const pointsOnY = Math.ceil(heightOffset / powerSpacing) - 1;
 
-  const points: [number, number][] = [];
+  const points: Point[] = [];
   for (let i = 0.5; i < pointsOnX; i++) {
     const x = Math.ceil((widthOffset * i) / pointsOnX + offset);
     points.push([x, offset], [x, heightOffset + offset]);
@@ -62,7 +63,7 @@ const getJitteredGrid = (
 
   const jitter = () => randomizer() * doubleJittering - jittering;
 
-  const points: [number, number][] = [];
+  const points: Point[] = [];
   for (let y = radius; y < height; y += spacing) {
     for (let x = radius; x < width; x += spacing) {
       const xj = Math.min(roundNumber(x + jitter(), 2), width);
@@ -109,10 +110,7 @@ const placePoints = (
  * Calculates a Delaunay, then Voronoi diagram based on those two algorithms and using the provided grid of points and
  * the boundary points (to limit the generation within those points).
  */
-export const calculateVoronoi = (
-  points: [number, number][],
-  boundary: [number, number][]
-) => {
+export const calculateVoronoi = (points: Point[], boundary: Point[]) => {
   const allPoints = points.concat(boundary);
   const delaunay = Delaunator.from(allPoints);
 
@@ -155,7 +153,7 @@ export const reVoronoi = (grid: Grid): [PackedCells, Vertices] => {
   const { cells: gridCells, points } = grid;
   // store new data
   const newCells: {
-    points: [number, number][];
+    points: Point[];
     gridIndexes: number[];
     heights: number[];
   } = {
@@ -219,6 +217,10 @@ export const reVoronoi = (grid: Grid): [PackedCells, Vertices] => {
     temperatures: grid.cells.temperatures,
     // New packed data
     points: newCells.points,
+    pathPoints: {
+      coastlines: [],
+      lakes: [],
+    },
     gridIndex: createTypedArray({
       maxValue: grid.points.length,
       from: newCells.gridIndexes,

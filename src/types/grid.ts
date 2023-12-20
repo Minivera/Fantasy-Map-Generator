@@ -1,6 +1,11 @@
 import { Quadtree } from 'd3-quadtree';
 
 /**
+ * A point on a 2D plane, utility type.
+ */
+export type Point = [number, number];
+
+/**
  * Describes the type of cell, either a land cell for a landmass or a water cells from the water next to a landmass.
  */
 export enum CellType {
@@ -273,7 +278,21 @@ export interface PackedCells extends Cells {
   /**
    * Array of tupples that record all the points from all the cells in the grid.
    */
-  points: [number, number][];
+  points: Point[];
+
+  /**
+   * Object containing the precalculated points for the various paths to draw for coastlines, rivers, lakes, and
+   * other objects that are calculated from cell positions. This avoids having to recalculate all this every time we
+   * render the map if they don't change.
+   */
+  pathPoints: {
+    coastlines: Point[][];
+    /**
+     * Lakes are stored as an object with the feature ID as the key and the points for the lake's shoreline
+     * as value.
+     */
+    lakes: Record<number, Point[]>;
+  };
 
   /**
    * Array of indexes that maps 1:1 with the `indexes` property. Prioritize using this array instead of `index` as the
@@ -329,7 +348,7 @@ export interface Vertices {
    * Coordinates for the vertices of the cells at the given index, will be set to the center of the triangle generated
    * by delaunator.
    */
-  coordinates: [number, number][];
+  coordinates: Point[];
 
   /**
    * Neighbouring vertices for the vertex at the given index.
@@ -348,8 +367,8 @@ export interface Vertices {
  */
 export interface Grid {
   spacing: number;
-  boundary: [number, number][];
-  points: [number, number][];
+  boundary: Point[];
+  points: Point[];
   cellsX: number;
   cellsY: number;
 
@@ -369,5 +388,5 @@ export interface PackedGrid extends Grid {
 
   cells: PackedCells;
   features: PackedFeature[];
-  ruler?: [[number, number], [number, number]];
+  ruler?: [Point, Point];
 }

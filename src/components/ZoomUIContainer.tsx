@@ -1,11 +1,7 @@
-import {
-  FunctionComponent,
-  PropsWithChildren,
-  useEffect,
-  useState,
-} from 'react';
+import { FunctionComponent, PropsWithChildren, useState } from 'react';
 import { Container, useApp } from '@pixi/react';
-import '@pixi/events';
+
+import { Point } from '../types/grid.ts';
 
 interface ZoomUIContainerProps {}
 
@@ -15,10 +11,10 @@ export const ZoomUIContainer: FunctionComponent<
 > = ({ children }) => {
   const app = useApp();
 
-  const [scale, setScale] = useState<[number, number]>([1, 1]);
-  const [position, setPosition] = useState<[number, number]>([0, 0]);
+  const [scale, setScale] = useState<Point>([1, 1]);
+  const [position, setPosition] = useState<Point>([0, 0]);
   const [dragging, setDragging] = useState(false);
-  const [, setPrevMousePos] = useState<[number, number]>([0, 0]);
+  const [, setPrevMousePos] = useState<Point>([0, 0]);
 
   console.log(scale, position);
   return (

@@ -6,6 +6,7 @@ import {
   PackedCells,
   PackedFeature,
   PackedGrid,
+  Point,
 } from '../types/grid.ts';
 import { roundNumber } from '../utils/math.ts';
 import { last } from '../utils/arrays.ts';
@@ -378,7 +379,7 @@ const getRiverPoints = (
   riverCells: number[],
   graphHeight: number,
   graphWidth: number
-): [number, number][] => {
+): Point[] => {
   const { points } = grid.cells;
 
   return riverCells.map((cell, i) => {
@@ -387,7 +388,7 @@ const getRiverPoints = (
     }
 
     return points[cell];
-  }) as [number, number][];
+  }) as Point[];
 };
 
 /**

@@ -1,5 +1,7 @@
 import Delaunator from 'delaunator';
-import { Cells, Vertices } from '../types/grid.ts';
+
+import { Cells, Vertices, Point } from '../types/grid.ts';
+
 import { createTypedArray } from './arrays.ts';
 
 /**
@@ -9,11 +11,7 @@ import { createTypedArray } from './arrays.ts';
  * @param {[number, number]} c The coordinates of the third point of the triangle
  * @return {[number, number]} The coordinates of the circumcenter of the triangle.
  */
-const circumcenter = (
-  a: [number, number],
-  b: [number, number],
-  c: [number, number]
-): [number, number] => {
+const circumcenter = (a: Point, b: Point, c: Point): Point => {
   const [ax, ay] = a;
   const [bx, by] = b;
   const [cx, cy] = c;
@@ -102,9 +100,9 @@ const edgesAroundPoint = (
  */
 const triangleCenter = (
   delaunay: Delaunator<ArrayLike<number>>,
-  points: [number, number][],
+  points: Point[],
   t: number
-): [number, number] => {
+): Point => {
   const vertices = pointsOfTriangle(delaunay, t).map(p => points[p]);
   return circumcenter(vertices[0], vertices[1], vertices[2]);
 };
@@ -134,7 +132,7 @@ const trianglesAdjacentToTriangle = (
  */
 export const voronoi = (
   delaunay: Delaunator<ArrayLike<number>>,
-  points: [number, number][],
+  points: Point[],
   pointsN: number
 ) => {
   const cells: Cells = {

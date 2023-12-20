@@ -1,6 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+import '@pixi/graphics-extras';
+import '@pixi/events';
+
 import { App } from './App.tsx';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

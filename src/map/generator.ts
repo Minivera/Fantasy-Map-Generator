@@ -4,7 +4,7 @@ import {
   HeightmapTemplate,
   heightmapTemplates,
 } from '../data/heightmapTemplates.ts';
-import { FeatureGroup, Grid, PackedGrid } from '../types/grid.ts';
+import { FeatureGroup, Grid, PackedGrid, Point } from '../types/grid.ts';
 import {
   getIndexFromProbabilityArray,
   probability,
@@ -160,7 +160,7 @@ export class Generator {
     rankCells(packedGrid);
 
     return {
-      ...grid,
+      ...packedGrid,
       vertices,
       cells: finalCells,
       mapSize,
@@ -172,10 +172,7 @@ export class Generator {
    * Define map size and position based on template and random factor
    * @private
    */
-  private defineMapSize(
-    grid: Grid,
-    template: HeightmapTemplate
-  ): [number, number] {
+  private defineMapSize(grid: Grid, template: HeightmapTemplate): Point {
     // if land goes over map borders
     const part = grid.features.some(f => f.isLand && f.isBorder);
     // max size

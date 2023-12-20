@@ -8,7 +8,6 @@ import {
   FeatureGroup,
   FeatureType,
   Grid,
-  PackedCells,
   PackedGrid,
 } from '../types/grid.ts';
 import { HeightmapTemplate } from '../data/heightmapTemplates.ts';
@@ -16,6 +15,7 @@ import { clipPoly } from '../utils/polygons.ts';
 
 /**
  * Calculate cell-distance to coast for every cell given.
+ * TODO: This breaks the cells typings pretty dramatically, since all land types are now a positive number
  */
 const markupCoastDistance = (
   cells: Cells,
@@ -178,7 +178,7 @@ const openNearSeaLakes = (grid: Grid, template: HeightmapTemplate) => {
         cells.adjacentCells[c].forEach(c => {
           // mark as coastline
           if (cells.heights[c] >= 20) {
-            cells.types[c] = 1;
+            cells.types[c] = CellType.Land;
           }
         });
 
@@ -407,6 +407,12 @@ const defineCoastline = (
       vchain = vchain.reverse();
     }
 
+    if (features[f].type === FeatureType.LAKE) {
+      cells.pathPoints.lakes[features[f].index] = points;
+    } else {
+      cells.pathPoints.coastlines.push(points);
+    }
+
     features[f].area = Math.abs(area);
     features[f].vertices = vchain;
 
@@ -416,38 +422,6 @@ const defineCoastline = (
         points[d3.leastIndex(points, (a, b) => a[0] - b[0]) as number];
       const to = points[d3.leastIndex(points, (a, b) => b[0] - a[0]) as number];
       grid.ruler = [from, to];
-    }
-  }
-};
-
-/**
- * Calculate cell-distance to coast for every cell provided within the given limit.
- */
-const calculateCoastDistance = (
-  cells: PackedCells,
-  start: number,
-  increment: number,
-  limit: number
-) => {
-  for (
-    let t = start, count = Infinity;
-    count > 0 && t > limit;
-    t += increment
-  ) {
-    count = 0;
-    const prevT = t - increment;
-    for (let i = 0; i < cells.indexes.length; i++) {
-      if (cells.types[i] !== prevT) {
-        continue;
-      }
-
-      for (const c of cells.adjacentCells[i]) {
-        if (cells.types[c]) {
-          continue;
-        }
-        cells.types[c] = t;
-        count++;
-      }
     }
   }
 };
@@ -585,7 +559,7 @@ export const reMarkFeatures = (
   grid.features = features;
 
   // markupPackLand
-  calculateCoastDistance(grid.cells, 3, 1, 0);
+  markupCoastDistance(grid.cells, 3, 1, 0);
 
   defineCoastline(grid, options);
 };

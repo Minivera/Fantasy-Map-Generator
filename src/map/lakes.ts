@@ -229,8 +229,8 @@ export const defineLakeGroup = (grid: PackedGrid) => {
       continue;
     }
 
-    const lakeFeature = feature as unknown as LakeFeature;
-
-    lakeFeature.group = getGroup(lakeFeature);
+    (feature as unknown as LakeFeature).group = getGroup(
+      feature as unknown as LakeFeature
+    );
   }
 };

@@ -46,6 +46,8 @@
   },
   "dependencies": {
     "@pixi/events": "^7.3.2",
+    "@pixi/filter-glow": "^5.2.1",
+    "@pixi/filter-outline": "^5.2.0",
     "@pixi/graphics-extras": "^7.3.2",
     "@pixi/react": "^7.1.1",
     "alea": "^1.0.1",
@@ -56,6 +58,7 @@
     "d3-random": "^3.0.1",
     "delaunator": "^5.0.0",
     "lineclip": "^1.1.5",
+    "pixi-viewport": "^5.0.2",
     "pixi.js": "^7.3.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
