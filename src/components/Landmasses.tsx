@@ -1,36 +1,47 @@
 import { FunctionComponent, useCallback } from 'react';
-import { Graphics as GraphicsType, Texture } from 'pixi.js';
+import {
+  AlphaFilter,
+  BLEND_MODES,
+  Graphics as GraphicsType,
+  Texture,
+} from 'pixi.js';
 import { Container, Graphics, useApp, withFilters } from '@pixi/react';
-import { GlowFilter } from '@pixi/filter-glow';
-import { OutlineFilter } from '@pixi/filter-outline';
 
-import { LakeFeature, PackedGrid, Point } from '../types/grid.ts';
+import { LakeFeature, PackedGrid } from '../types/grid.ts';
 import { biomeColor, BiomeIndexes } from '../data/biomes.ts';
 
 import oceanPattern from '../assets/ocean_pattern1.png';
 import { LakeColors } from '../data/features.ts';
 import { drawCurvedLine, drawD3ClosedCurve } from '../pixiUtils/draw.ts';
+import { simplifyPolygon } from '../utils/polygons.ts';
+import { cellsColor, coastlineColor, oceanColor } from '../data/colors.ts';
 
 const oceanTexture = Texture.from(oceanPattern);
 
 const CoastlineFilters = withFilters(Graphics, {
-  glow: GlowFilter,
-  outline: OutlineFilter,
+  alphaFilter: AlphaFilter,
 });
 
 interface LandmassesProps {
   physicalMap: PackedGrid;
+
+  shouldDrawCells?: boolean;
+  shouldDrawBiomes?: boolean;
+  shouldDrawHeightmap?: boolean;
+  shouldDrawIcons?: boolean;
 }
 
 export const Landmasses: FunctionComponent<LandmassesProps> = ({
   physicalMap,
+  shouldDrawCells = false,
+  shouldDrawBiomes = false,
+  shouldDrawHeightmap = false,
+  shouldDrawIcons = false,
 }) => {
   const app = useApp();
 
   // TODO: Extract all this logic when the drawing is finalized
   const drawOcean = useCallback(
-    // TODO: Convert the ocean into a sprite so we can apply the coastline filters to it
-    // https://stackoverflow.com/questions/50940737/how-to-convert-a-graphic-to-a-sprite-in-pixijs
     (g: GraphicsType) => {
       if (!physicalMap) {
         return;
@@ -59,7 +70,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
       g.endFill();
 
       // Next, draw some color over it with opacity so the texture still shows up
-      g.beginFill(0x466eab, 0.75);
+      g.beginFill(oceanColor, 0.75);
       g.drawRect(0, 0, app.screen.width, app.screen.height);
       // Then redraw the hole again
       drawHole();
@@ -76,7 +87,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
       g.clear();
       physicalMap.cells.pathPoints.coastlines.forEach(path => {
-        g.lineStyle(2, 0x808080, 1, 0.5);
+        g.lineStyle(2, coastlineColor, 1, 0.5);
 
         drawD3ClosedCurve(g, path);
 
@@ -86,7 +97,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
     [physicalMap]
   );
 
-  const drawCoastlineOutline = useCallback(
+  const drawCoastlineOutlineNear = useCallback(
     (g: GraphicsType) => {
       if (!physicalMap) {
         return;
@@ -94,23 +105,47 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
       g.clear();
       physicalMap.cells.pathPoints.coastlines.forEach(path => {
-        const [start, ...rest] = path;
-        g.moveTo(start[0], start[1]);
+        g.lineStyle(50, 0xffffff, 1, 0.5);
+
+        drawD3ClosedCurve(g, simplifyPolygon(path, 5));
+
+        g.closePath();
+        g.endFill();
+      });
+    },
+    [physicalMap]
+  );
+
+  const drawCoastlineOutlineFar = useCallback(
+    (g: GraphicsType) => {
+      if (!physicalMap) {
+        return;
+      }
+
+      g.clear();
+      physicalMap.cells.pathPoints.coastlines.forEach(path => {
+        g.lineStyle(150, 0xffffff, 1, 0.5);
+
+        drawD3ClosedCurve(g, simplifyPolygon(path, 10));
+
+        g.closePath();
+        g.endFill();
+      });
+    },
+    [physicalMap]
+  );
+
+  const drawCoastlineEraser = useCallback(
+    (g: GraphicsType) => {
+      if (!physicalMap) {
+        return;
+      }
+
+      g.clear();
+      physicalMap.cells.pathPoints.coastlines.forEach(path => {
         g.beginFill(0x00ff00);
 
-        for (let i = 0; i < rest.length - 2; i++) {
-          const xc = (rest[i][0] + rest[i + 1][0]) / 2;
-          const yc = (rest[i][1] + rest[i + 1][1]) / 2;
-          g.quadraticCurveTo(rest[i][0], rest[i][1], xc, yc);
-        }
-
-        // curve through the last two points
-        g.quadraticCurveTo(
-          rest[rest.length - 2][0],
-          rest[rest.length - 2][1],
-          rest[rest.length - 1][0],
-          rest[rest.length - 1][1]
-        );
+        drawD3ClosedCurve(g, path);
 
         g.closePath();
         g.endFill();
@@ -120,15 +155,12 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
   );
 
   const drawCells = useCallback(
-    // TODO: Convert the cells to a sprite so we can mask it for lakes and other things
     (g: GraphicsType) => {
       if (!physicalMap) {
         return;
       }
 
       g.clear();
-
-      // const cellBlur = new BlurFilter(1.5);
 
       // Start by drawing all the cells
       physicalMap.cells.vertices.forEach((cellVertices, i) => {
@@ -140,10 +172,8 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
           return;
         }
 
-        // Drawing the cell itself
-        g.beginFill(biomeColor[physicalMap.cells.biomes[i]]);
-        // Also add some light blur to the cells to generate a biome blending effect
-        // g.filters = [cellBlur];
+        // Drawing the cell itself, only the borders
+        g.lineStyle(0.1, cellsColor, 1);
 
         const [start, ...rest] = cellVertices;
         g.moveTo(
@@ -159,28 +189,87 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         });
 
         g.closePath();
+      });
+    },
+    [physicalMap]
+  );
+
+  const drawBiomes = useCallback(
+    (g: GraphicsType) => {
+      if (!physicalMap || !physicalMap.biomeGroups) {
+        return;
+      }
+
+      g.clear();
+
+      Object.entries(physicalMap.biomeGroups).forEach(([key, paths]) => {
+        const biomeIndex: BiomeIndexes = parseInt(key);
+        if (biomeIndex === BiomeIndexes.MARINE) {
+          return;
+        }
+
+        paths.forEach(path => {
+          g.beginFill(biomeColor[biomeIndex]);
+
+          drawD3ClosedCurve(g, path);
+
+          g.endFill();
+        });
+      });
+    },
+    [physicalMap]
+  );
+
+  const drawLakesShapes = useCallback(
+    (g: GraphicsType) => {
+      g.clear();
+
+      // Draw only the shape of the lakes with basic background color
+      Object.values(physicalMap.cells.pathPoints.lakes).forEach(points => {
+        g.beginFill(0x466eab, 1);
+        g.lineStyle(1, 0x466eab, 1, 1);
+
+        drawD3ClosedCurve(g, points);
         g.endFill();
       });
     },
     [physicalMap]
   );
 
-  const drawLake = useCallback(
-    (g: GraphicsType) => (featureID: string, points: Point[]) => {
+  const drawLakes = useCallback(
+    (g: GraphicsType) => {
       g.clear();
 
-      // TODO: draw lakes over the map. If masked properly with another lake, it should render in place
-      // TODO: without issues. Check if we could scale a lake a little to make it overlap all possible cells.
-      const lakeFeature = physicalMap.features[
-        parseInt(featureID)
-      ] as unknown as LakeFeature;
+      Object.entries(physicalMap.cells.pathPoints.lakes).forEach(
+        ([lakeID, points]) => {
+          const lakeFeature = physicalMap.features[
+            parseInt(lakeID)
+          ] as unknown as LakeFeature;
 
-      const colorData = LakeColors[lakeFeature.group];
-      g.beginFill(colorData.fill, colorData.fillAlpha);
-      g.lineStyle(colorData.outlineWidth, colorData.outline, 1, 0.5);
+          const colorData = LakeColors[lakeFeature.group];
+          g.beginFill(colorData.fill, colorData.fillAlpha);
+          g.lineStyle(colorData.outlineWidth, colorData.outline, 1, 1);
 
-      drawD3ClosedCurve(g, points);
-      g.endFill();
+          drawD3ClosedCurve(g, points);
+          g.endFill();
+        }
+      );
+
+      // Draw the lake islands over the lake so they render without causing issues on the cells or other layers.
+      Object.entries(physicalMap.cells.pathPoints.islands).forEach(
+        ([islandID, points]) => {
+          const islandFeature = physicalMap.features[parseInt(islandID)];
+
+          const islandColor = shouldDrawBiomes
+            ? biomeColor[physicalMap.cells.biomes[islandFeature.firstCell]]
+            : 0xffffff;
+          g.beginFill(islandColor, 1);
+          g.lineStyle(1, coastlineColor, 1, 1);
+
+          drawD3ClosedCurve(g, points);
+          g.endFill();
+        }
+      );
     },
     [physicalMap]
   );
@@ -191,32 +280,31 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
   return (
     <Container>
-      <Graphics draw={drawCells} />
       <Graphics draw={drawOcean} />
       <CoastlineFilters
-        draw={drawCoastlineOutline}
-        outline={{
-          alpha: 0.25,
-          color: 0xffffff,
-          thickness: 15,
-          knockout: true,
+        draw={drawCoastlineOutlineFar}
+        alphaFilter={{
+          enabled: true,
+          alpha: 0.15,
         }}
+        blendMode={BLEND_MODES.SRC_OVER}
       />
       <CoastlineFilters
-        draw={drawCoastlineOutline}
-        outline={{
-          alpha: 0.5,
-          color: 0xffffff,
-          thickness: 5,
-          knockout: true,
+        draw={drawCoastlineOutlineNear}
+        alphaFilter={{
+          enabled: true,
+          alpha: 0.25,
         }}
+        blendMode={BLEND_MODES.SRC_OVER}
       />
-      <Graphics draw={drawCoastline} />
-      {Object.entries(physicalMap.cells.pathPoints.lakes).map(
-        ([lakeID, points]) => (
-          <Graphics key={lakeID} draw={g => drawLake(g)(lakeID, points)} />
-        )
+      <Graphics draw={drawCoastlineEraser} blendMode={BLEND_MODES.ERASE} />
+      {shouldDrawBiomes && (
+        <Graphics draw={drawBiomes} blendMode={BLEND_MODES.SRC_OVER} />
       )}
+      <Graphics draw={drawCoastline} />
+      <Graphics draw={drawLakesShapes} blendMode={BLEND_MODES.NONE} />
+      <Graphics draw={drawLakes} />
+      {shouldDrawCells && <Graphics draw={drawCells} />}
     </Container>
   );
 };

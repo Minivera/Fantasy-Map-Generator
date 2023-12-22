@@ -12,6 +12,7 @@ import {
 } from '../types/grid.ts';
 import { HeightmapTemplate } from '../data/heightmapTemplates.ts';
 import { clipPoly } from '../utils/polygons.ts';
+import { roundNumber } from '../utils/math.ts';
 
 /**
  * Calculate cell-distance to coast for every cell given.
@@ -407,8 +408,17 @@ const defineCoastline = (
       vchain = vchain.reverse();
     }
 
+    points = points.map(point => [
+      roundNumber(point[0], 1),
+      roundNumber(point[1], 1),
+    ]);
     if (features[f].type === FeatureType.LAKE) {
       cells.pathPoints.lakes[features[f].index] = points;
+    } else if (
+      features[f].type === FeatureType.ISLAND &&
+      features[f].group === FeatureGroup.LAKEISLAND
+    ) {
+      cells.pathPoints.islands[features[f].index] = points;
     } else {
       cells.pathPoints.coastlines.push(points);
     }

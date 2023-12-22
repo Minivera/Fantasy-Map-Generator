@@ -17,7 +17,7 @@ import { markFeatures, reMarkFeatures } from './features.ts';
 import { Coordinates, generateClimate } from './temperature.ts';
 import { generateRivers } from './rivers.ts';
 import { defineLakeGroup } from './lakes.ts';
-import { defineBiomes } from './biomes.ts';
+import { defineBiomes, groupBiomes } from './biomes.ts';
 
 export class Generator {
   private readonly seed: string;
@@ -154,6 +154,7 @@ export class Generator {
 
     // Define the biome for each cell now that we know everything about it's physical components
     defineBiomes(packedGrid);
+    groupBiomes(packedGrid, options.graphWidth, options.graphHeight);
 
     // Define the suitability and general population of the cell.
     // TODO: Right now this is considered a part of the physical geography of the map. Make more customizable.

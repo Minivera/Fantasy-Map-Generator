@@ -1,4 +1,5 @@
 import { Quadtree } from 'd3-quadtree';
+import { BiomeIndexes } from '../data/biomes.ts';
 
 /**
  * A point on a 2D plane, utility type.
@@ -292,6 +293,11 @@ export interface PackedCells extends Cells {
      * as value.
      */
     lakes: Record<number, Point[]>;
+    /**
+     * Islands are stored as an object with the feature ID as the key and the points for the islands's shoreline
+     * as value.
+     */
+    islands: Record<number, Point[]>;
   };
 
   /**
@@ -389,4 +395,5 @@ export interface PackedGrid extends Grid {
   cells: PackedCells;
   features: PackedFeature[];
   ruler?: [Point, Point];
+  biomeGroups?: Record<BiomeIndexes, Point[][]>;
 }
