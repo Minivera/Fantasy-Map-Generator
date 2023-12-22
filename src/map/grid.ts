@@ -218,6 +218,7 @@ export const reVoronoi = (grid: Grid): [PackedCells, Vertices] => {
     // New packed data
     points: newCells.points,
     pathPoints: {
+      oceanLayers: {},
       coastlines: [],
       lakes: {},
       islands: {},

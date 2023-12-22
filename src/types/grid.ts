@@ -287,6 +287,13 @@ export interface PackedCells extends Cells {
    * render the map if they don't change.
    */
   pathPoints: {
+    /**
+     * Object containing the ocean layers for the map, which add some depth to continents by outlining them with
+     * a sort of shallow water. The object has the distance limit from the coast as its key and the path of the layer
+     * values.
+     */
+    oceanLayers: Record<number, Point[][]>;
+
     coastlines: Point[][];
     /**
      * Lakes are stored as an object with the feature ID as the key and the points for the lake's shoreline
@@ -404,4 +411,10 @@ export interface PackedGrid extends Grid {
   ruler?: [Point, Point];
   biomeGroups?: Record<BiomeIndexes, Point[][]>;
   heightmapGroups?: Record<number, Point[][]>;
+  biomeIcons?: {
+    image: string;
+    x: number;
+    y: number;
+    size: number;
+  }[];
 }

@@ -12,6 +12,7 @@ import { roundNumber } from '../utils/math.ts';
 import { last } from '../utils/arrays.ts';
 
 import { cleanupLakeData, prepareLakeData, setClimateData } from './lakes.ts';
+import { distanceBetweenPoints, isLandFilter } from '../utils/graph.ts';
 
 const FLUX_FACTOR = 500;
 const MAX_FLUX_WIDTH = 2;
@@ -382,9 +383,24 @@ const getRiverPoints = (
 ): Point[] => {
   const { points } = grid.cells;
 
-  return riverCells.map((cell, i) => {
+  return riverCells.map((cell, i, cells) => {
     if (cell === -1) {
       return getBorderPoint(grid, riverCells[i - 1], graphHeight, graphWidth);
+    }
+
+    if (grid.cells.heights[cell] < 20) {
+      const borderVertex = grid.cells.vertices[cell]
+        .filter(v => grid.vertices.adjacent[v].some(isLandFilter(grid.cells)))
+        .map(v => [
+          v,
+          distanceBetweenPoints(
+            grid.vertices.coordinates[v],
+            grid.cells.points[cells[Math.max(i - 1, 0)]]
+          ),
+        ])
+        .sort((v1, v2) => v1[1] - v2[1])[0];
+
+      return grid.vertices.coordinates[borderVertex[0]];
     }
 
     return points[cell];

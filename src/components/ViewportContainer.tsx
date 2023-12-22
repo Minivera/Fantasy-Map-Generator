@@ -22,8 +22,8 @@ const PixiViewportComponent = PixiComponent<
       ...viewportProps,
       screenWidth: window.innerWidth,
       screenHeight: window.innerHeight,
-      worldWidth: app.stage.width,
-      worldHeight: app.stage.height,
+      worldWidth: app.screen.width,
+      worldHeight: app.screen.height,
     });
 
     viewport
@@ -41,7 +41,7 @@ const PixiViewportComponent = PixiComponent<
 
     (viewport as Viewport)
       .fitWorld(true)
-      .moveCenter(app.stage.width / 2, app.stage.height / 2);
+      .moveCenter(app.screen.width / 2, app.screen.height / 2);
 
     return viewport;
   },
@@ -57,6 +57,7 @@ const PixiViewportComponent = PixiComponent<
     const {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       children: newChildren,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       app: newApp,
       ...newRest
     } = newProps;
@@ -68,17 +69,6 @@ const PixiViewportComponent = PixiComponent<
         viewport[p] = newRest[p];
       }
     });
-
-    (viewport as Viewport).snapZoom({
-      width: newApp.stage.width,
-      height: newApp.stage.height,
-      removeOnComplete: true,
-    });
-    (viewport as Viewport).snap(
-      -newApp.stage.width / 2,
-      -newApp.stage.height / 2,
-      { removeOnComplete: true }
-    );
   },
 });
 

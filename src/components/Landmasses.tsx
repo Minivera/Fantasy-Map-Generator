@@ -1,11 +1,6 @@
 import { FunctionComponent, useCallback } from 'react';
-import {
-  AlphaFilter,
-  BLEND_MODES,
-  Graphics as GraphicsType,
-  Texture,
-} from 'pixi.js';
-import { Container, Graphics, useApp, withFilters } from '@pixi/react';
+import { BLEND_MODES, Graphics as GraphicsType, Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, useApp } from '@pixi/react';
 import * as d3Scale from 'd3-scale';
 import * as d3ScaleChromatic from 'd3-scale-chromatic';
 
@@ -13,24 +8,17 @@ import { LakeFeature, PackedGrid } from '../types/grid.ts';
 import { biomeColor, BiomeIndexes } from '../data/biomes.ts';
 import oceanPattern from '../assets/ocean_pattern1.png';
 import { LakeColors } from '../data/features.ts';
-import {
-  drawCurvedLine,
-  drawD3ClosedCurve,
-  drawD3RiverCurve,
-} from '../pixiUtils/draw.ts';
-import { simplifyPolygon } from '../utils/polygons.ts';
+import { drawD3ClosedCurve, drawD3RiverCurve } from '../pixiUtils/draw.ts';
 import {
   cellsColor,
   coastlineColor,
   oceanColor,
+  oceanLayerColor,
   riverColor,
 } from '../data/colors.ts';
+import { roundNumber } from '../utils/math.ts';
 
 const oceanTexture = Texture.from(oceanPattern);
-
-const CoastlineFilters = withFilters(Graphics, {
-  alphaFilter: AlphaFilter,
-});
 
 interface LandmassesProps {
   physicalMap: PackedGrid;
@@ -62,7 +50,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         physicalMap.cells.pathPoints.coastlines.forEach(path => {
           g.beginFill(0x000000);
 
-          drawCurvedLine(g, path);
+          drawD3ClosedCurve(g, path);
 
           g.endFill();
         });
@@ -85,8 +73,23 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
       // Then redraw the hole again
       drawHole();
       g.endFill();
+
+      // Finally, draw the layers for the continents outline and punch the continents hole into it.
+      const opacity = roundNumber(
+        0.4 / Object.keys(physicalMap.cells.pathPoints.oceanLayers).length,
+        2
+      );
+      Object.values(physicalMap.cells.pathPoints.oceanLayers).forEach(paths => {
+        g.beginFill(oceanLayerColor, opacity);
+        paths.forEach(path => {
+          drawD3ClosedCurve(g, path);
+        });
+
+        drawHole();
+        g.endFill();
+      });
     },
-    [physicalMap]
+    [physicalMap, app]
   );
 
   const drawCoastline = useCallback(
@@ -96,53 +99,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         g.lineStyle(2, coastlineColor, 1, 0.5);
 
         drawD3ClosedCurve(g, path);
-
-        g.closePath();
-      });
-    },
-    [physicalMap]
-  );
-
-  const drawCoastlineOutlineNear = useCallback(
-    (g: GraphicsType) => {
-      g.clear();
-      physicalMap.cells.pathPoints.coastlines.forEach(path => {
-        g.lineStyle(50, 0xffffff, 1, 0.5);
-
-        drawD3ClosedCurve(g, simplifyPolygon(path, 5));
-
-        g.closePath();
-        g.endFill();
-      });
-    },
-    [physicalMap]
-  );
-
-  const drawCoastlineOutlineFar = useCallback(
-    (g: GraphicsType) => {
-      g.clear();
-      physicalMap.cells.pathPoints.coastlines.forEach(path => {
-        g.lineStyle(150, 0xffffff, 1, 0.5);
-
-        drawD3ClosedCurve(g, simplifyPolygon(path, 10));
-
-        g.closePath();
-        g.endFill();
-      });
-    },
-    [physicalMap]
-  );
-
-  const drawCoastlineEraser = useCallback(
-    (g: GraphicsType) => {
-      g.clear();
-      physicalMap.cells.pathPoints.coastlines.forEach(path => {
-        g.beginFill(0x00ff00);
-
-        drawD3ClosedCurve(g, path);
-
-        g.closePath();
-        g.endFill();
       });
     },
     [physicalMap]
@@ -177,8 +133,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
             physicalMap.vertices.coordinates[vertex][1]
           );
         });
-
-        g.closePath();
       });
     },
     [physicalMap]
@@ -227,7 +181,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
         drawD3ClosedCurve(g, path);
 
-        g.closePath();
         g.endFill();
       });
 
@@ -346,31 +299,10 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
   return (
     <Container>
       <Graphics draw={drawOcean} />
-      <CoastlineFilters
-        draw={drawCoastlineOutlineFar}
-        alphaFilter={{
-          enabled: true,
-          alpha: 0.15,
-        }}
-        blendMode={BLEND_MODES.SRC_OVER}
-      />
-      <CoastlineFilters
-        draw={drawCoastlineOutlineNear}
-        alphaFilter={{
-          enabled: true,
-          alpha: 0.25,
-        }}
-        blendMode={BLEND_MODES.SRC_OVER}
-      />
-      <Graphics draw={drawCoastlineEraser} blendMode={BLEND_MODES.ERASE} />
-      {shouldDrawBiomes && (
-        <Graphics draw={drawBiomes} blendMode={BLEND_MODES.SRC_OVER} />
-      )}
-      {shouldDrawHeightmap && (
-        <Graphics draw={drawHeightmap} blendMode={BLEND_MODES.SRC_OVER} />
-      )}
-      {shouldDrawRivers && <Graphics draw={drawRivers} />}
       <Graphics draw={drawCoastline} />
+      {shouldDrawBiomes && <Graphics draw={drawBiomes} />}
+      {shouldDrawHeightmap && <Graphics draw={drawHeightmap} />}
+      {shouldDrawRivers && <Graphics draw={drawRivers} />}
       {shouldDrawLakes && (
         <>
           <Graphics draw={drawLakesShapes} blendMode={BLEND_MODES.NONE} />
@@ -378,6 +310,17 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         </>
       )}
       {shouldDrawCells && <Graphics draw={drawCells} />}
+      {shouldDrawIcons &&
+        physicalMap.biomeIcons?.map(({ image, x, y, size }, index) => (
+          <Sprite
+            key={index}
+            image={image}
+            height={size * 1.5}
+            width={size * 1.5}
+            x={x}
+            y={y}
+          />
+        ))}
     </Container>
   );
 };

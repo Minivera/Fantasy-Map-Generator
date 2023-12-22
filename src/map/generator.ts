@@ -18,6 +18,8 @@ import { Coordinates, generateClimate } from './temperature.ts';
 import { defineRiverPath, generateRivers } from './rivers.ts';
 import { defineLakeGroup } from './lakes.ts';
 import { defineBiomes, groupBiomes } from './biomes.ts';
+import { defineOceanLayers } from './ocean.ts';
+import { placeBiomeIcons } from './biomeIcons.ts';
 
 export class Generator {
   private readonly seed: string;
@@ -99,6 +101,13 @@ export class Generator {
     // Start marking the base features based on the template options
     markFeatures(grid, heightmapTemplate, options);
 
+    // Define the ocean layers before we do anything else
+    const oceanLayersPaths = defineOceanLayers(
+      grid,
+      options.graphWidth,
+      options.graphHeight
+    );
+
     // Define the map size and figure out where this map fits on a globe.
     const [mapSize, mapLatitude] = this.defineMapSize(grid, heightmapTemplate);
 
@@ -147,6 +156,8 @@ export class Generator {
       })),
     };
 
+    packedGrid.cells.pathPoints.oceanLayers = oceanLayersPaths;
+
     // Redo all the features like rivers and lakes now that we have a more complete data set for each cells.
     reMarkFeatures(packedGrid, options);
     generateRivers(packedGrid, options);
@@ -159,6 +170,7 @@ export class Generator {
     // Define the biome for each cell now that we know everything about it's physical components
     defineBiomes(packedGrid);
     groupBiomes(packedGrid, options.graphWidth, options.graphHeight);
+    placeBiomeIcons(packedGrid, {});
 
     // Define the suitability and general population of the cell.
     // TODO: Right now this is considered a part of the physical geography of the map. Make more customizable.
