@@ -395,13 +395,13 @@ const getRiverPoints = (
  * Add points at 1/3 and 2/3 of a line between adjacents river cells to make the river feel like it is meandering
  * between the geography.
  */
-const addMeandering = function (
+export const addMeandering = (
   grid: PackedGrid,
   riverCells: number[],
   graphHeight: number,
   graphWidth: number,
   meandering: number = 0.5
-): [number, number, number][] {
+): [number, number, number][] => {
   const { waterFlux, confluences, heights } = grid.cells;
   const meandered: [number, number, number][] = [];
   const lastStep = riverCells.length - 1;
@@ -715,4 +715,63 @@ export const generateRivers = (
     // downcut river beds
     downcutRivers(grid);
   }
+};
+
+/**
+ * Builds a triangular polygon for a river based on the center points of the river. It will make the river
+ * grow or shrink based on the width factor, then return a set of points for the right side of the river
+ * and the left side of the river.
+ */
+const getRiverPath = (
+  points: [number, number, number][],
+  widthFactor: number,
+  startingWidth = 0
+): { right: Point[]; left: Point[] } => {
+  const riverPointsLeft = [];
+  const riverPointsRight = [];
+
+  for (let p = 0; p < points.length; p++) {
+    const [x0, y0] = points[p - 1] || points[p];
+    const [x1, y1, flux] = points[p];
+    const [x2, y2] = points[p + 1] || points[p];
+
+    const offset = getOffset(flux, p, widthFactor, startingWidth);
+    const angle = Math.atan2(y0 - y2, x0 - x2);
+    const sinOffset = Math.sin(angle) * offset;
+    const cosOffset = Math.cos(angle) * offset;
+
+    riverPointsLeft.push([x1 - sinOffset, y1 + cosOffset]);
+    riverPointsRight.push([x1 + sinOffset, y1 - cosOffset]);
+  }
+
+  return {
+    right: riverPointsRight
+      .reverse()
+      .map(p => [roundNumber(p[0], 1), roundNumber(p[1], 1)]),
+    left: riverPointsLeft.map(p => [
+      roundNumber(p[0], 1),
+      roundNumber(p[1], 1),
+    ]),
+  };
+};
+
+/**
+ * Defines the set of paths for rivers for drawing on the map once we render it. The points are added to an
+ * object that defines their left and right points.
+ */
+export const defineRiverPath = (
+  grid: PackedGrid,
+  graphWidth: number,
+  graphHeight: number
+) => {
+  grid.rivers.forEach(({ cells, widthFactor, sourceWidth }) => {
+    if (!cells || cells.length < 2) {
+      return;
+    }
+
+    const meanderedPoints = addMeandering(grid, cells, graphHeight, graphWidth);
+    grid.cells.pathPoints.rivers.push(
+      getRiverPath(meanderedPoints, widthFactor, sourceWidth)
+    );
+  });
 };

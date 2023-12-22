@@ -298,6 +298,13 @@ export interface PackedCells extends Cells {
      * as value.
      */
     islands: Record<number, Point[]>;
+
+    /**
+     * Rivers are stored as an array of object containing the left points of the river and right points of the river.
+     * The rivers should be drawn by moving down the left points, then coming back the right points and joining the line
+     * at the top.
+     */
+    rivers: { right: Point[]; left: Point[] }[];
   };
 
   /**
@@ -396,4 +403,5 @@ export interface PackedGrid extends Grid {
   features: PackedFeature[];
   ruler?: [Point, Point];
   biomeGroups?: Record<BiomeIndexes, Point[][]>;
+  heightmapGroups?: Record<number, Point[][]>;
 }

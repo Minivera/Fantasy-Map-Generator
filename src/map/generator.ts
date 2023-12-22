@@ -12,10 +12,10 @@ import {
 import { gauss, roundNumber } from '../utils/math.ts';
 
 import { generateGrid, rankCells, reVoronoi } from './grid.ts';
-import { generateHeightmap } from './heightmap.ts';
+import { generateHeightmap, groupHeightmap } from './heightmap.ts';
 import { markFeatures, reMarkFeatures } from './features.ts';
 import { Coordinates, generateClimate } from './temperature.ts';
-import { generateRivers } from './rivers.ts';
+import { defineRiverPath, generateRivers } from './rivers.ts';
 import { defineLakeGroup } from './lakes.ts';
 import { defineBiomes, groupBiomes } from './biomes.ts';
 
@@ -151,6 +151,10 @@ export class Generator {
     reMarkFeatures(packedGrid, options);
     generateRivers(packedGrid, options);
     defineLakeGroup(packedGrid);
+    defineRiverPath(packedGrid, options.graphWidth, options.graphHeight);
+
+    // Group the heightmap cells now that we have the complete data
+    groupHeightmap(packedGrid);
 
     // Define the biome for each cell now that we know everything about it's physical components
     defineBiomes(packedGrid);

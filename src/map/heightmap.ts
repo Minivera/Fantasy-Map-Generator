@@ -23,7 +23,7 @@ import {
   HeightmapTroughTool,
 } from '../data/heightmapTemplates.ts';
 import { Range } from '../types/probability.ts';
-import { Grid } from '../types/grid.ts';
+import { Grid, PackedGrid, Point } from '../types/grid.ts';
 
 import { findGridCell } from './grid.ts';
 
@@ -705,6 +705,11 @@ const fromTemplate = (
   }, heights);
 };
 
+/**
+ * Generates a random continent or set of continents for the map using the provided heightmap template. The template
+ * describes a list of actions to take on each "pass" on the heightmap, which will generate various map features until
+ * all passes are done.
+ */
 export const generateHeightmap = (
   randomizer: ReturnType<typeof Alea>,
   grid: Grid,
@@ -717,4 +722,106 @@ export const generateHeightmap = (
 ) => {
   // TODO: Add image templates
   return fromTemplate(randomizer, grid, template, options);
+};
+
+/**
+ * Generate a set of paths for each "height" level on the map. This will generate a set of overlapping paths based
+ * on cell heights so we can generate blobs of colors with an alpha value being used to generate how "high" the cell
+ * looks. The paths are simplified to look more simple and not follow the cell geometry as much. We will also skip
+ * the first height level as it should be rendered as the "base" of the map. We'll save it as an empty array on the
+ * object.
+ */
+export const groupHeightmap = (grid: PackedGrid) => {
+  const { cells, vertices } = grid;
+  const n = cells.indexes.length;
+  const used = new Uint8Array(n);
+  const paths: Record<number, Point[][]> = {};
+
+  const skip = 6;
+
+  let currentLayer = 20;
+  const heights = cells.indexes.sort(
+    (a, b) => cells.heights[a] - cells.heights[b]
+  );
+
+  // connect vertices to chain
+  const connectVertices = (start: number, h: number) => {
+    // vertices chain to form a path
+    const chain: number[] = [];
+    for (
+      let i = 0, current = start;
+      i === 0 || (current !== start && i < 20000);
+      i++
+    ) {
+      // previous vertex in chain
+      const prev = chain[chain.length - 1];
+      // add current vertex to sequence
+      chain.push(current);
+
+      // cells adjacent to vertex
+      const c = vertices.adjacent[current];
+      c.filter(c => cells.heights[c] === h).forEach(c => (used[c] = 1));
+
+      const c0 = c[0] >= n || cells.heights[c[0]] < h;
+      const c1 = c[1] >= n || cells.heights[c[1]] < h;
+      const c2 = c[2] >= n || cells.heights[c[2]] < h;
+
+      // neighboring vertices
+      const v = vertices.neighbours[current];
+      if (v[0] !== prev && c0 !== c1) {
+        current = v[0];
+      } else if (v[1] !== prev && c1 !== c2) {
+        current = v[1];
+      } else if (v[2] !== prev && c0 !== c2) {
+        current = v[2];
+      }
+
+      if (current === chain[chain.length - 1]) {
+        break;
+      }
+    }
+
+    return chain;
+  };
+
+  const [first, ...rest] = heights;
+  // Skip first height, it should render as the base
+  paths[first] = [];
+
+  for (const i of rest) {
+    const h = cells.heights[i];
+    if (h > currentLayer) {
+      currentLayer += skip;
+    }
+
+    // no layers possible with height > 100
+    if (currentLayer > 100) {
+      break;
+    }
+    if (h < currentLayer) {
+      continue;
+    }
+
+    // already marked
+    if (used[i]) {
+      continue;
+    }
+    const onborder = cells.adjacentCells[i].some(n => cells.heights[n] < h);
+    if (!onborder) {
+      continue;
+    }
+
+    const vertex = cells.vertices[i].find(v =>
+      vertices.adjacent[v].some(i => cells.heights[i] < h)
+    ) as number;
+    const chain = connectVertices(vertex, h);
+    if (chain.length < 3) {
+      continue;
+    }
+
+    const points = chain.map(v => vertices.coordinates[v]);
+    paths[h] = Array.isArray(paths[h]) ? paths[h].concat(points) : [points];
+  }
+
+  grid.heightmapGroups = paths;
 };

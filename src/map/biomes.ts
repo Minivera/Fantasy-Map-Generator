@@ -119,7 +119,7 @@ export const groupBiomes = (
   // connect vertices to chain
   const connectVertices = (start: number, b: number) => {
     // vertices chain to form a path
-    const chain = [];
+    const chain: number[] = [];
     for (
       let i = 0, current = start;
       i === 0 || (current !== start && i < 20000);

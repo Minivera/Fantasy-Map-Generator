@@ -32,7 +32,11 @@ export const Map: FunctionComponent<MapProps> = ({
       }}
     >
       <ViewportContainer>
-        <Landmasses physicalMap={physicalMap} />
+        <Landmasses
+          physicalMap={physicalMap}
+          shouldDrawLakes={true}
+          shouldDrawRivers={true}
+        />
       </ViewportContainer>
     </Stage>
   );

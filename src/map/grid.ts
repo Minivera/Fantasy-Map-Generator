@@ -221,6 +221,7 @@ export const reVoronoi = (grid: Grid): [PackedCells, Vertices] => {
       coastlines: [],
       lakes: {},
       islands: {},
+      rivers: [],
     },
     gridIndex: createTypedArray({
       maxValue: grid.points.length,

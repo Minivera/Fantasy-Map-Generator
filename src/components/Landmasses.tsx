@@ -6,15 +6,25 @@ import {
   Texture,
 } from 'pixi.js';
 import { Container, Graphics, useApp, withFilters } from '@pixi/react';
+import * as d3Scale from 'd3-scale';
+import * as d3ScaleChromatic from 'd3-scale-chromatic';
 
 import { LakeFeature, PackedGrid } from '../types/grid.ts';
 import { biomeColor, BiomeIndexes } from '../data/biomes.ts';
-
 import oceanPattern from '../assets/ocean_pattern1.png';
 import { LakeColors } from '../data/features.ts';
-import { drawCurvedLine, drawD3ClosedCurve } from '../pixiUtils/draw.ts';
+import {
+  drawCurvedLine,
+  drawD3ClosedCurve,
+  drawD3RiverCurve,
+} from '../pixiUtils/draw.ts';
 import { simplifyPolygon } from '../utils/polygons.ts';
-import { cellsColor, coastlineColor, oceanColor } from '../data/colors.ts';
+import {
+  cellsColor,
+  coastlineColor,
+  oceanColor,
+  riverColor,
+} from '../data/colors.ts';
 
 const oceanTexture = Texture.from(oceanPattern);
 
@@ -28,6 +38,8 @@ interface LandmassesProps {
   shouldDrawCells?: boolean;
   shouldDrawBiomes?: boolean;
   shouldDrawHeightmap?: boolean;
+  shouldDrawLakes?: boolean;
+  shouldDrawRivers?: boolean;
   shouldDrawIcons?: boolean;
 }
 
@@ -36,6 +48,8 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
   shouldDrawCells = false,
   shouldDrawBiomes = false,
   shouldDrawHeightmap = false,
+  shouldDrawLakes = false,
+  shouldDrawRivers = false,
   shouldDrawIcons = false,
 }) => {
   const app = useApp();
@@ -43,10 +57,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
   // TODO: Extract all this logic when the drawing is finalized
   const drawOcean = useCallback(
     (g: GraphicsType) => {
-      if (!physicalMap) {
-        return;
-      }
-
       const drawHole = () => {
         g.beginHole();
         physicalMap.cells.pathPoints.coastlines.forEach(path => {
@@ -81,10 +91,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
   const drawCoastline = useCallback(
     (g: GraphicsType) => {
-      if (!physicalMap) {
-        return;
-      }
-
       g.clear();
       physicalMap.cells.pathPoints.coastlines.forEach(path => {
         g.lineStyle(2, coastlineColor, 1, 0.5);
@@ -99,10 +105,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
   const drawCoastlineOutlineNear = useCallback(
     (g: GraphicsType) => {
-      if (!physicalMap) {
-        return;
-      }
-
       g.clear();
       physicalMap.cells.pathPoints.coastlines.forEach(path => {
         g.lineStyle(50, 0xffffff, 1, 0.5);
@@ -118,10 +120,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
   const drawCoastlineOutlineFar = useCallback(
     (g: GraphicsType) => {
-      if (!physicalMap) {
-        return;
-      }
-
       g.clear();
       physicalMap.cells.pathPoints.coastlines.forEach(path => {
         g.lineStyle(150, 0xffffff, 1, 0.5);
@@ -137,10 +135,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
   const drawCoastlineEraser = useCallback(
     (g: GraphicsType) => {
-      if (!physicalMap) {
-        return;
-      }
-
       g.clear();
       physicalMap.cells.pathPoints.coastlines.forEach(path => {
         g.beginFill(0x00ff00);
@@ -156,10 +150,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
   const drawCells = useCallback(
     (g: GraphicsType) => {
-      if (!physicalMap) {
-        return;
-      }
-
       g.clear();
 
       // Start by drawing all the cells
@@ -196,7 +186,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
   const drawBiomes = useCallback(
     (g: GraphicsType) => {
-      if (!physicalMap || !physicalMap.biomeGroups) {
+      if (!physicalMap.biomeGroups) {
         return;
       }
 
@@ -220,6 +210,48 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
     [physicalMap]
   );
 
+  const drawHeightmap = useCallback(
+    (g: GraphicsType) => {
+      if (!physicalMap.heightmapGroups) {
+        return;
+      }
+
+      g.clear();
+
+      const colorScheme = d3Scale.scaleSequential(
+        d3ScaleChromatic.interpolateSpectral
+      );
+      // First, render all the coastlines without border and fill them with the base color
+      physicalMap.cells.pathPoints.coastlines.forEach(path => {
+        g.beginFill(colorScheme(0.8));
+
+        drawD3ClosedCurve(g, path);
+
+        g.closePath();
+        g.endFill();
+      });
+
+      Object.entries(physicalMap.heightmapGroups).forEach(([key, paths]) => {
+        const heightLevel: BiomeIndexes = parseInt(key);
+        if (!paths.length) {
+          return;
+        }
+
+        paths.forEach(path => {
+          const color = colorScheme(
+            1 - (heightLevel < 20 ? heightLevel - 5 : heightLevel) / 100
+          );
+          g.beginFill(color);
+
+          drawD3ClosedCurve(g, path);
+
+          g.endFill();
+        });
+      });
+    },
+    [physicalMap]
+  );
+
   const drawLakesShapes = useCallback(
     (g: GraphicsType) => {
       g.clear();
@@ -230,6 +262,21 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         g.lineStyle(1, 0x466eab, 1, 1);
 
         drawD3ClosedCurve(g, points);
+        g.endFill();
+      });
+    },
+    [physicalMap]
+  );
+
+  const drawRivers = useCallback(
+    (g: GraphicsType) => {
+      g.clear();
+
+      physicalMap.cells.pathPoints.rivers.forEach(({ right, left }) => {
+        g.beginFill(riverColor, 1);
+
+        drawD3RiverCurve(g, [...right, ...left]);
+
         g.endFill();
       });
     },
@@ -260,9 +307,27 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         ([islandID, points]) => {
           const islandFeature = physicalMap.features[parseInt(islandID)];
 
-          const islandColor = shouldDrawBiomes
-            ? biomeColor[physicalMap.cells.biomes[islandFeature.firstCell]]
-            : 0xffffff;
+          let islandColor: number | string = 0xffffff;
+          if (shouldDrawBiomes) {
+            const firstCellBiome =
+              physicalMap.cells.biomes[islandFeature.firstCell];
+
+            islandColor = biomeColor[firstCellBiome];
+          } else if (shouldDrawHeightmap) {
+            const firstCellHeight =
+              physicalMap.cells.heights[islandFeature.firstCell];
+
+            const colorScheme = d3Scale.scaleSequential(
+              d3ScaleChromatic.interpolateSpectral
+            );
+
+            islandColor = colorScheme(
+              1 -
+                (firstCellHeight < 20 ? firstCellHeight - 5 : firstCellHeight) /
+                  100
+            );
+          }
+
           g.beginFill(islandColor, 1);
           g.lineStyle(1, coastlineColor, 1, 1);
 
@@ -301,9 +366,17 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
       {shouldDrawBiomes && (
         <Graphics draw={drawBiomes} blendMode={BLEND_MODES.SRC_OVER} />
       )}
+      {shouldDrawHeightmap && (
+        <Graphics draw={drawHeightmap} blendMode={BLEND_MODES.SRC_OVER} />
+      )}
+      {shouldDrawRivers && <Graphics draw={drawRivers} />}
       <Graphics draw={drawCoastline} />
-      <Graphics draw={drawLakesShapes} blendMode={BLEND_MODES.NONE} />
-      <Graphics draw={drawLakes} />
+      {shouldDrawLakes && (
+        <>
+          <Graphics draw={drawLakesShapes} blendMode={BLEND_MODES.NONE} />
+          <Graphics draw={drawLakes} />
+        </>
+      )}
       {shouldDrawCells && <Graphics draw={drawCells} />}
     </Container>
   );
