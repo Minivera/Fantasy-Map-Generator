@@ -1,34 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import Alea from 'alea';
 
 import { PackedGrid } from './types/grid.ts';
-import { Generator } from './map/generator.ts';
+import { generate as generatePhysicalMap } from './map/physical';
 import { randomRange } from './utils/probability.ts';
 import { Map } from './components/Map.tsx';
+import { Areas } from './types/areas.ts';
+import { generateAreaMap } from './map/areas';
 
 export const App = () => {
+  const randomizer = useMemo(
+    () => Alea(String(Math.floor(Math.random() * 1e9))),
+    []
+  );
+
   const [physicalMap, setPhyisicalMap] = useState<PackedGrid | null>(null);
   const [physicalMapLoaded, setPhysicalMapLoaded] = useState(false);
 
+  const [areaMap, setAreaMap] = useState<Areas | null>(null);
+  const [areaMapLoaded, setAreaMaoLoaded] = useState(false);
+
   useEffect(() => {
-    const generator = new Generator();
+    if (!randomizer) {
+      return;
+    }
 
     // temperature extremes
     const temperatureMax = 30;
     const temperatureMin = -30;
 
     const temperatureEquator = randomRange(
-      generator.randomizer,
+      randomizer,
       temperatureMax - 10,
       temperatureMax
     );
     const temperaturePole = randomRange(
-      generator.randomizer,
+      randomizer,
       temperatureMin,
       temperatureMin + 30
     );
 
     setPhyisicalMap(
-      generator.generatePhysicalMap({
+      generatePhysicalMap(randomizer, {
         // pointsInput
         cellsToGenerate: 10000,
         graphHeight: window.innerHeight,
@@ -48,11 +61,30 @@ export const App = () => {
       })
     );
     setPhysicalMapLoaded(true);
-  }, []);
+  }, [randomizer]);
 
-  return physicalMapLoaded ? (
+  useEffect(() => {
+    if (!randomizer || !physicalMapLoaded || !physicalMap) {
+      return;
+    }
+
+    setAreaMap(
+      generateAreaMap(randomizer, physicalMap, {
+        graphHeight: window.innerHeight,
+        graphWidth: window.innerWidth,
+        minAreaSize: 2,
+        maxAreaSize: 7,
+        cellsToDrop: 2,
+      })
+    );
+    setAreaMaoLoaded(true);
+  }, [randomizer, physicalMap, physicalMapLoaded]);
+
+  console.log(physicalMap, areaMap);
+  return physicalMapLoaded && areaMapLoaded ? (
     <Map
       physicalMap={physicalMap}
+      areaMap={areaMap}
       graphHeight={window.innerHeight}
       graphWidth={window.innerWidth}
     />

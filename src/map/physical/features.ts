@@ -9,10 +9,10 @@ import {
   FeatureType,
   Grid,
   PackedGrid,
-} from '../types/grid.ts';
-import { HeightmapTemplate } from '../data/heightmapTemplates.ts';
-import { clipPoly } from '../utils/polygons.ts';
-import { roundNumber } from '../utils/math.ts';
+} from '../../types/grid.ts';
+import { HeightmapTemplate } from '../../data/heightmapTemplates.ts';
+import { clipPoly } from '../../utils/polygons.ts';
+import { roundNumber } from '../../utils/math.ts';
 
 /**
  * Calculate cell-distance to coast for every cell given.

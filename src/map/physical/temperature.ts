@@ -1,9 +1,9 @@
 import * as d3Ease from 'd3-ease';
 import * as d3Array from 'd3-array';
 
-import { Cells, Grid } from '../types/grid.ts';
-import { clamp, roundNumber } from '../utils/math.ts';
-import { randomRange } from '../utils/probability.ts';
+import { Cells, Grid } from '../../types/grid.ts';
+import { clamp, roundNumber } from '../../utils/math.ts';
+import { randomRange } from '../../utils/probability.ts';
 import Alea from 'alea';
 
 export interface Coordinates {

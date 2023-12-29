@@ -1,13 +1,13 @@
 import Alea from 'alea';
 import * as d3 from 'd3-array';
 
-import { createTypedArray } from '../utils/arrays.ts';
+import { createTypedArray } from '../../utils/arrays.ts';
 import {
   getNumberInRange,
   probability,
   randomRange,
-} from '../utils/probability.ts';
-import { limitTo100 } from '../utils/math.ts';
+} from '../../utils/probability.ts';
+import { limitTo100 } from '../../utils/math.ts';
 import {
   HeightmapAddTool,
   HeightmapHillTool,
@@ -21,9 +21,9 @@ import {
   HeightmapTemplate,
   HeightmapToolType,
   HeightmapTroughTool,
-} from '../data/heightmapTemplates.ts';
-import { Range } from '../types/probability.ts';
-import { Grid, PackedGrid, Point } from '../types/grid.ts';
+} from '../../data/heightmapTemplates.ts';
+import { Range } from '../../types/probability.ts';
+import { Grid, PackedGrid, Point } from '../../types/grid.ts';
 
 import { findGridCell } from './grid.ts';
 

@@ -2,22 +2,26 @@ import { FunctionComponent } from 'react';
 import { Stage } from '@pixi/react';
 
 import { PackedGrid } from '../types/grid.ts';
+import { Areas as AreasType } from '../types/areas.ts';
 
 import { ViewportContainer } from './ViewportContainer.tsx';
 import { Landmasses } from './Landmasses.tsx';
+import { Areas } from './Areas.tsx';
 
 interface MapProps {
   physicalMap: PackedGrid | null;
+  areaMap: AreasType | null;
   graphHeight: number;
   graphWidth: number;
 }
 
 export const Map: FunctionComponent<MapProps> = ({
   physicalMap,
+  areaMap,
   graphHeight,
   graphWidth,
 }) => {
-  if (!physicalMap) {
+  if (!physicalMap || !areaMap) {
     return null;
   }
 
@@ -36,9 +40,12 @@ export const Map: FunctionComponent<MapProps> = ({
           physicalMap={physicalMap}
           shouldDrawLakes={true}
           shouldDrawRivers={true}
-          shouldDrawBiomes={true}
-          shouldDrawIcons={true}
+          shouldDrawBiomes={false}
+          shouldDrawHeightmap={true}
+          shouldDrawIcons={false}
+          shouldDrawCells={true}
         />
+        <Areas areaMap={areaMap} shouldDrawArea={true} />
       </ViewportContainer>
     </Stage>
   );

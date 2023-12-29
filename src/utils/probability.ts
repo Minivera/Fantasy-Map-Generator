@@ -26,7 +26,7 @@ export const randomRange = (
   min?: number,
   max?: number
 ): number => {
-  if (!max && !min) {
+  if (typeof max === 'undefined' && typeof !min === 'undefined') {
     return randomizer();
   }
 
@@ -41,6 +41,10 @@ export const randomRange = (
   } else {
     realMax = max as number;
     realMin = min as number;
+  }
+
+  if (realMax === realMin) {
+    return realMax;
   }
 
   return Math.floor(randomizer() * (realMax - realMin + 1)) + realMin;

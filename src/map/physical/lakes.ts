@@ -5,8 +5,8 @@ import {
   LakeFeature,
   LakeFeatureGroup,
   PackedGrid,
-} from '../types/grid.ts';
-import { roundNumber } from '../utils/math.ts';
+} from '../../types/grid.ts';
+import { roundNumber } from '../../utils/math.ts';
 
 /**
  * Get array of land cells around a lake feature

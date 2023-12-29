@@ -7,12 +7,12 @@ import {
   PackedFeature,
   PackedGrid,
   Point,
-} from '../types/grid.ts';
-import { roundNumber } from '../utils/math.ts';
-import { last } from '../utils/arrays.ts';
+} from '../../types/grid.ts';
+import { roundNumber } from '../../utils/math.ts';
+import { last } from '../../utils/arrays.ts';
 
 import { cleanupLakeData, prepareLakeData, setClimateData } from './lakes.ts';
-import { distanceBetweenPoints, isLandFilter } from '../utils/graph.ts';
+import { distanceBetweenPoints, isLandFilter } from '../../utils/graph.ts';
 
 const FLUX_FACTOR = 500;
 const MAX_FLUX_WIDTH = 2;

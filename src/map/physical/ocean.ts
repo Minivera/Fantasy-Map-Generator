@@ -1,6 +1,6 @@
-import { Grid } from '../types/grid.ts';
-import { roundNumber } from '../utils/math.ts';
-import { clipPoly } from '../utils/polygons.ts';
+import { Grid } from '../../types/grid.ts';
+import { roundNumber } from '../../utils/math.ts';
+import { clipPoly } from '../../utils/polygons.ts';
 import { Point } from 'lineclip';
 
 export const defineOceanLayers = (

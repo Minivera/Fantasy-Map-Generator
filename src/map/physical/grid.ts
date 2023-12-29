@@ -4,8 +4,8 @@ import * as d3Array from 'd3-array';
 import * as d3QuadTree from 'd3-quadtree';
 import * as d3Polygon from 'd3-polygon';
 
-import { normalize, roundNumber } from '../utils/math.ts';
-import { voronoi } from '../utils/voronoi.ts';
+import { normalize, roundNumber } from '../../utils/math.ts';
+import { voronoi } from '../../utils/voronoi.ts';
 import {
   CellType,
   FeatureType,
@@ -16,9 +16,9 @@ import {
   PackedGrid,
   Vertices,
   Point,
-} from '../types/grid.ts';
-import { createTypedArray, UINT16_MAX } from '../utils/arrays.ts';
-import { biomeHabitability } from '../data/biomes.ts';
+} from '../../types/grid.ts';
+import { createTypedArray, UINT16_MAX } from '../../utils/arrays.ts';
+import { biomeHabitability } from '../../data/biomes.ts';
 
 /**
  * Add points to the edge of the map to clip the voronoi generation, which should allow us to create good looking

@@ -1,10 +1,10 @@
 import * as d3 from 'd3-array';
 
-import { PackedGrid, Point } from '../types/grid.ts';
-import { roundNumber } from '../utils/math.ts';
-import { isLandFilter } from '../utils/graph.ts';
-import { BiomeIndexes, biomesMartix } from '../data/biomes.ts';
-import { clipPoly } from '../utils/polygons.ts';
+import { PackedGrid, Point } from '../../types/grid.ts';
+import { roundNumber } from '../../utils/math.ts';
+import { isLandFilter } from '../../utils/graph.ts';
+import { BiomeIndexes, biomesMartix } from '../../data/biomes.ts';
+import { clipPoly } from '../../utils/polygons.ts';
 
 /**
  * Calculates the general moisture level of a cell by checking how close it is to a wated feature and it's

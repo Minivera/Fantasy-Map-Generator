@@ -109,15 +109,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
       g.clear();
 
       // Start by drawing all the cells
-      physicalMap.cells.vertices.forEach((cellVertices, i) => {
-        if (
-          !physicalMap.cells.types[i] ||
-          physicalMap.cells.types[i] <= 0 ||
-          physicalMap.cells.biomes[i] === BiomeIndexes.MARINE
-        ) {
-          return;
-        }
-
+      physicalMap.cells.vertices.forEach(cellVertices => {
         // Drawing the cell itself, only the borders
         g.lineStyle(0.1, cellsColor, 1);
 
