@@ -5,7 +5,6 @@ import { Container, Graphics, useApp } from '@pixi/react';
 import { drawD3ClosedCurve } from '../pixiUtils/draw.ts';
 import { Areas as AreasType } from '../types/areas.ts';
 import { randomDistinguishableColor } from '../utils/colors.ts';
-import { PackedGrid } from '../types/grid.ts';
 
 interface AreasProps {
   areaMap: AreasType;
@@ -24,6 +23,8 @@ export const Areas: FunctionComponent<AreasProps> = ({
   // TODO: Extract all this logic when the drawing is finalized
   const drawAreas = useCallback(
     (g: GraphicsType) => {
+      g.clear();
+
       areaMap.forEach(area => {
         const areaColor = randomDistinguishableColor(area.index);
 

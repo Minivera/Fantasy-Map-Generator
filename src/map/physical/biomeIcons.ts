@@ -192,7 +192,7 @@ export const placeBiomeIcons = (
 
         let h = (4 + Math.random()) * size;
         const icon = getBiomeIcon(grid, i, biomeIcons[biome]);
-        if (icon === '#relief-grass-1') {
+        if (icon === 'relief-grass-1') {
           h *= 1.2;
         }
 

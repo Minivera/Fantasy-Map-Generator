@@ -1,5 +1,6 @@
 import Alea from 'alea';
 import * as d3Polygon from 'd3-polygon';
+import * as d3Array from 'd3-array';
 
 import {
   CellType,
@@ -14,7 +15,12 @@ import { randomRange } from '../../utils/probability.ts';
 import { Area, Areas } from '../../types/areas.ts';
 import { BiomeIndexes } from '../../data/biomes.ts';
 import { clipPoly } from '../../utils/polygons.ts';
+import { insertIntoSorted } from '../../utils/arrays.ts';
 
+/**
+ * Assigns the adjacent areas of this area after generation, this should allow us to know which
+ * areas are near one another to capture during political generation, or for creating regions.
+ */
 const assignAdjacent = (cells: PackedCells, area: Area, others: Areas) => {
   const known: boolean[] = new Array(others.length)
     .fill(false)
@@ -53,62 +59,235 @@ const assignAdjacent = (cells: PackedCells, area: Area, others: Areas) => {
 };
 
 /**
- * Checks if the shortest path between the current cell and the target cell is cut by a map feature such as a
- * river. Will look for paths of length up to the limit.
+ * Gets the weight value of a cell based on the rivers between it and the start cell. This should allow us
+ * to make areas match the topology of the map, following rivers and not overlapping them. Since rivers are on
+ * a specific cell rather than between cells, the map might not match perfectly.
  */
-const isSeparatedFromStart = (
-  cells: PackedCells,
-  sourceCell: number,
-  targetCell: number,
-  limit: number = 4
-): boolean => {
-  const paths: number[][] = [];
-
-  // This is a fairly standard path lookup algorithm
-  const queue = [sourceCell];
-  const visited = { [sourceCell]: true };
-  const predecessor: Record<number, number> = {};
-
-  while (queue.length) {
-    // Pop a vertex off the queue.
-    const current = queue.pop() as number;
-    const neighbors = cells.adjacentCells[current];
-
-    for (let i = 0; i < neighbors.length; ++i) {
-      const v = neighbors[i];
-      if (visited[v]) {
-        continue;
-      }
-
-      visited[v] = true;
-      const path = [v];
-      let pathCell = current;
-      while (pathCell !== sourceCell) {
-        path.push(pathCell);
-        pathCell = predecessor[pathCell];
-      }
-      // We don't add the source cell to the path, since we don't want to check it as separated.
-
-      // Make sure to avoid paths that break the limit
-      if (path.length >= limit) {
-        break;
-      }
-
-      if (v === targetCell) {
-        // Check if the path is complete.
-        // If so, backtrack through the path and add it to the known paths.
-        path.reverse();
-        paths.push(path);
-        break;
-      }
-
-      predecessor[v] = current;
-      queue.push(v);
-    }
+const getRiverWeight = (
+  physicalMap: PackedGrid,
+  startCell: number,
+  currentCell: number,
+  pathsToStart: Record<number, number[]>
+): number => {
+  const { cells } = physicalMap;
+  // We'll consider three cases for calculating the value of a cell based on rivers.
+  const pathToStart = pathsToStart[currentCell];
+  if (!pathToStart) {
+    return cells.rivers[currentCell] ? 10 : 0;
   }
 
-  const shortestPath = paths.toSorted((p1, p2) => p1.length - p2.length)[0];
-  return shortestPath.some(c => cells.rivers[c]);
+  // Case 1 will check if a cell cuts an area in two. We should only keep cells that are on the start cell's
+  // side of the river. The pathsToStart variable should contain all those paths.
+  if (pathToStart.slice(1).some(c => cells.rivers[c])) {
+    // If one cell within the path is a river (ignoring the start cell), then this is case 1.
+    // Drop the cell as it's now "cut off" from the start cell.
+    return -99999;
+  }
+
+  // Case 2 will check if the start cell is a river. It will be hard to know if a cell is on the same side
+  // as another cell, so to keep things simple, we instead make sure that areas follow the flow of water.
+  // If start is a river, only select cells that are also a river or have an adjacent river.
+  if (cells.rivers[startCell]) {
+    return cells.rivers[currentCell] === cells.rivers[startCell] ||
+      cells.adjacentCells[currentCell].some(c => cells.rivers[c])
+      ? 10
+      : -99999;
+  }
+
+  // Case 3 will check if the current cell is a river. Do the same as case 1, but capture this cell
+  // if no river cuts it from start. We want to return a good weight to make this cell valuable on a
+  // first pass, but avoid over-capturing rivers.
+  if (cells.rivers[currentCell]) {
+    return pathToStart.slice(1).some(c => cells.rivers[c]) ? -99999 : 10;
+  }
+
+  return 0;
+};
+
+/**
+ * Filters out cells from the adjacent cell selection based on the cell's properties. This will make sure
+ * that areas have matching themes, like their height, their biome, their temperature, their precipitation,
+ * and their features. We'll then make sure to not cross any river so they properly separate regions.
+ */
+const filterOutCells = (
+  randomizer: ReturnType<typeof Alea>,
+  physicalMap: PackedGrid,
+  startCell: number,
+  adjacentCells: number[],
+  cellsToDrop: number,
+  pathsToStart: Record<number, number[]>
+) => {
+  const { cells, features } = physicalMap;
+
+  const startFeature = features[cells.features[startCell]];
+  const startHeight = cells.heights[startCell];
+  const startBiome = cells.biomes[startCell];
+  const startTemperature = cells.temperatures[startCell];
+  const startPrecipication = cells.precipitation[startCell];
+
+  // If our start cell is a lake cell, don't even run the ranking, only return lake cells.
+  if (startFeature.type === FeatureType.LAKE) {
+    return adjacentCells.filter(
+      c => features[cells.features[c]].type === FeatureType.LAKE
+    );
+  }
+
+  // If we hit a lake cell, this filter should not even consider that cell. Drop it
+  const toConsider = adjacentCells.filter(
+    c => features[cells.features[c]].type !== FeatureType.LAKE
+  );
+  let cellsByWeight: [number, number][] = [];
+
+  toConsider.forEach(adjacent => {
+    let baseWeight = 10;
+
+    // Start by checking the heightmap. Assign cells with either the same height, or
+    // a height within 5 units of each other.
+    const cellHeight = cells.heights[adjacent];
+    if (cellHeight === startHeight) {
+      baseWeight += 20;
+    } else if (cellHeight <= startHeight + 5 && cellHeight >= startHeight - 5) {
+      baseWeight += 10;
+    } else {
+      baseWeight -= 10;
+    }
+
+    // Next, check the biome and temperature/precipitations, same as heights. Same biome is preferred,
+    // if not, make sure temperature and precipitations are close.
+    const cellBiome = cells.biomes[adjacent];
+    const cellTemperature = cells.temperatures[adjacent];
+    const cellPrecipication = cells.precipitation[adjacent];
+    if (cellBiome === startBiome) {
+      baseWeight += 10;
+    } else {
+      if (
+        cellTemperature <= startTemperature + 5 &&
+        cellTemperature >= startTemperature - 5
+      ) {
+        baseWeight += 5;
+      } else {
+        baseWeight -= 5;
+      }
+
+      if (
+        cellPrecipication <= startPrecipication + 5 &&
+        cellPrecipication >= startPrecipication - 5
+      ) {
+        baseWeight += 5;
+      } else {
+        baseWeight -= 5;
+      }
+    }
+
+    // Consider the features from the map to give some more value to the individual cells.
+    // start by checking the rivers and harbors, then check if we should try to get
+    // a "water" cell based on the cell type and the biome. Similar to how we select icons.
+    baseWeight += getRiverWeight(
+      physicalMap,
+      startCell,
+      adjacent,
+      pathsToStart
+    );
+
+    const havenFeature = features[cells.features[cells.haven[adjacent]]];
+    if (havenFeature.type === FeatureType.LAKE) {
+      const lakeFeature = havenFeature as unknown as LakeFeature;
+
+      if (cellHeight > 70) {
+        // If the cell is very high in the sky and cold, ignore the biome
+        if (
+          lakeFeature.group === LakeFeatureGroup.FROZEN ||
+          lakeFeature.group === LakeFeatureGroup.LAVA
+        ) {
+          baseWeight += 15;
+        } else if (lakeFeature.group === LakeFeatureGroup.FRESHWATER) {
+          baseWeight += 10;
+        } else if (
+          lakeFeature.group === LakeFeatureGroup.SALT ||
+          lakeFeature.group === LakeFeatureGroup.DRY
+        ) {
+          baseWeight -= 5;
+        }
+      } else {
+        // Otherwise, use the biome to check for cell value.
+        switch (cellBiome) {
+          case BiomeIndexes.TEMPERATE_RAINFOREST:
+          case BiomeIndexes.TEMPERATE_DECIDUOUS_FOREST:
+          case BiomeIndexes.GRASSLAND:
+          case BiomeIndexes.WETLAND:
+          case BiomeIndexes.TROPICAL_RAINFOREST:
+          case BiomeIndexes.TROPICAL_SEASONAL_FOREST:
+            if (lakeFeature.group === LakeFeatureGroup.FRESHWATER) {
+              baseWeight += 15;
+            } else if (lakeFeature.group === LakeFeatureGroup.SALT) {
+              baseWeight += 10;
+            } else if (
+              lakeFeature.group === LakeFeatureGroup.FROZEN ||
+              lakeFeature.group === LakeFeatureGroup.DRY ||
+              lakeFeature.group === LakeFeatureGroup.LAVA
+            ) {
+              baseWeight -= 5;
+            }
+            break;
+          case BiomeIndexes.COLD_DESERT:
+          case BiomeIndexes.HOT_DESERT:
+          case BiomeIndexes.SAVANNA:
+            if (lakeFeature.group === LakeFeatureGroup.DRY) {
+              baseWeight += 15;
+            } else if (
+              lakeFeature.group === LakeFeatureGroup.FRESHWATER ||
+              lakeFeature.group === LakeFeatureGroup.LAVA
+            ) {
+              baseWeight += 10;
+            } else if (
+              lakeFeature.group === LakeFeatureGroup.FROZEN ||
+              lakeFeature.group === LakeFeatureGroup.SALT
+            ) {
+              baseWeight -= 5;
+            }
+            break;
+          case BiomeIndexes.GLACIER:
+          case BiomeIndexes.TAIGA:
+          case BiomeIndexes.TUNDRA:
+            if (lakeFeature.group === LakeFeatureGroup.FROZEN) {
+              baseWeight += 15;
+            } else if (lakeFeature.group === LakeFeatureGroup.FRESHWATER) {
+              baseWeight += 10;
+            } else if (
+              lakeFeature.group === LakeFeatureGroup.DRY ||
+              lakeFeature.group === LakeFeatureGroup.SALT ||
+              lakeFeature.group === LakeFeatureGroup.LAVA
+            ) {
+              baseWeight -= 5;
+            }
+            break;
+        }
+      }
+    } else if (cells.types[adjacent] === CellType.Land) {
+      // ocean coast is valued
+      baseWeight += 5;
+      // safe sea harbor is valued
+      if (cells.harbor[adjacent] === 1) {
+        baseWeight += 20;
+      }
+    }
+
+    cellsByWeight = insertIntoSorted(
+      cellsByWeight,
+      [adjacent, baseWeight],
+      (val1, val2) => val1[1] < val2[1]
+    );
+  });
+
+  const amountToDrop = randomRange(randomizer, 0, cellsToDrop);
+
+  // Return the selected cells by dropping those with low weight, and removing any with
+  // negative weight. This will give a priority to the high value cells without necessarily
+  // leading to areas that snake around.
+  return cellsByWeight
+    .filter(c => c[1] > 0)
+    .slice(amountToDrop)
+    .map(c => c[0]);
 };
 
 /**
@@ -125,11 +304,11 @@ export const defineAreas = (
     maxAreaSize: number;
     cellsToDrop: number;
   }
-) => {
+): Areas => {
   const { cells, features } = physicalMap;
   const { minAreaSize, maxAreaSize, cellsToDrop } = options;
 
-  const areas: Areas = [];
+  let areas: Areas = [];
 
   const used: boolean[] = new Array(cells.indexes.length).fill(false);
 
@@ -203,216 +382,69 @@ export const defineAreas = (
   while (queue.length) {
     // Get a random cell within the queue
     const startCell = queue[randomRange(randomizer, 0, queue.length - 1)];
-    let areaCells = [startCell];
+    const areaCells = [startCell];
 
-    // Get all adjacent cells for the current cell into the array, removing any used cell
-    areaCells.push(...cells.adjacentCells[startCell].filter(c => !used[c]));
-    if (areaCells.length <= 1) {
-      // If the size of the area is 1 even while looking at the neighbors, try to merge this
-      // cell into an adjacent area. Find the one with the smallest cell count.
-      let adjacent = areas
-        .filter(a =>
-          a.cells.some(c => cells.adjacentCells[startCell].includes(c))
-        )
-        .toSorted((a1, a2) => a2.cells.length - a1.cells.length);
+    // Select the immediately adjacent cells to the current start cell, which should give
+    // us a roughly round area. Then drop a specific number of cells from it, which we add to the
+    // final area cells.
+    let previousBatch = filterOutCells(
+      randomizer,
+      physicalMap,
+      startCell,
+      [...cells.adjacentCells[startCell].filter(c => !used[c])],
+      cellsToDrop,
+      {}
+    );
+    areaCells.push(...previousBatch);
 
-      if (features[cells.features[startCell]].type !== FeatureType.LAKE) {
-        // If we hit a single cell in a lake, assign it to another area of that lake if any
-        adjacent = adjacent.filter(
-          a => features[cells.features[a.center]].type !== FeatureType.LAKE
-        );
-      }
+    // Object that contains a map of cell indexes and their path to the selected start cell,
+    // which should make it easy to detect things between currently selected cells and the start
+    // cell. The path is the cells to teh start cell, starting from the start cell, excluding the
+    // current cell
+    const pathsToStart: Record<number, number[]> = Object.fromEntries(
+      areaCells.map(c => {
+        if (c === startCell) {
+          return [startCell, []];
+        }
 
-      if (
-        cells.biomes[startCell] !== BiomeIndexes.MARINE &&
-        !adjacent.some(a => a.properties.biome !== BiomeIndexes.MARINE)
-      ) {
-        // If all adjacent cells are marine cells, it's a lone island. Add and keep going
-        const newArea: Area = {
-          center: startCell,
-          cells: [startCell],
-          adjacentAreas: [],
-          border: [],
-          index: areas.length,
-          properties: {
-            biome: cells.biomes[startCell],
-            features: [cells.features[startCell]],
-            harbor: [cells.harbor[startCell]],
-            height: cells.heights[startCell],
-            population: 0,
-            precipitation: cells.precipitation[startCell],
-            temperature: cells.temperatures[startCell],
-          },
-        };
-
-        // Assign adjacent areas
-        assignAdjacent(cells, newArea, areas);
-        areas.push(newArea);
-
-        used[startCell] = true;
-        queue = cells.indexes.filter(i => !used[i]);
-        continue;
-      } else if (adjacent.length) {
-        // If we found an adjacent area, assign this cell to it and keep going.
-        adjacent[0].cells.push(startCell);
-        assignAdjacent(cells, adjacent[0], areas);
-
-        used[startCell] = true;
-        queue = cells.indexes.filter(i => !used[i]);
-        continue;
-      }
-
-      // If not, then continue. We'll assign this one to an area eventually
-      continue;
-    }
-
-    // Add more adjacent cells to the area to make sure we hit the minimum. The minimum is not strict though,
-    // cancel if we gone thought all cells.
-    let currentCell = 1;
-    const lastCell = areaCells.length - 1;
+        return [c, [startCell]];
+      })
+    );
     while (areaCells.length < minAreaSize) {
-      areaCells.push(
-        ...cells.adjacentCells[areaCells[currentCell]].filter(
-          c => !areaCells.includes(c) && !used[c]
-        )
-      );
+      // While we are not at our max area size, keep adding cells.
+      // Get all the adjacent cells of the previous batch.
+      const newBatch: number[] = [];
+      previousBatch.forEach(adjacent => {
+        if (newBatch.length + areaCells.length > maxAreaSize) {
+          return;
+        }
 
-      currentCell++;
-      if (currentCell > lastCell) {
-        // Stop when we've gone over all the original cells. Don't create "line" areas, so don't add more.
+        cells.adjacentCells[adjacent].forEach(c => {
+          if (c === adjacent || areaCells.includes(c) || used[c]) {
+            // Skip any cells we've already identified.
+            return;
+          }
+
+          newBatch.push(c);
+          pathsToStart[c] = pathsToStart[adjacent].concat(adjacent);
+        });
+      });
+
+      if (!newBatch.length) {
+        // If we had no candidates, we'll never be able to reach the min cells, drop this run
         break;
       }
+
+      previousBatch = filterOutCells(
+        randomizer,
+        physicalMap,
+        startCell,
+        newBatch,
+        cellsToDrop,
+        pathsToStart
+      );
+      areaCells.push(...previousBatch);
     }
-
-    // Remove any cells above the maximum size
-    while (areaCells.length > maxAreaSize) {
-      areaCells.splice(randomRange(randomizer, 0, areaCells.length - 1), 1);
-    }
-
-    // Drop a small set of cells randomly to randomize the size of the area
-    const toDrop: number[] = [];
-    const amountToDrop = randomRange(
-      randomizer,
-      0,
-      Math.max(Math.min(cellsToDrop, areaCells.length - 1 - minAreaSize), 0)
-    );
-
-    let i = 0;
-    while (i < amountToDrop) {
-      // We don't want to select the start cell, which should always be the "first" cell.
-      const indexToDrop = randomRange(randomizer, 1, areaCells.length - 1);
-      if (toDrop.includes(areaCells[indexToDrop])) {
-        continue;
-      }
-
-      toDrop.push(areaCells[indexToDrop]);
-      i++;
-    }
-
-    areaCells = areaCells.filter(c => !toDrop.includes(c));
-
-    // Start ranking the cells, cells should start with a base rank, and we'll filter them based on that.
-    const ranks: Record<number, number> = Object.fromEntries(
-      areaCells.map(c => [c, 10])
-    );
-    areaCells.forEach(cell => {
-      if (cell === startCell) {
-        // If we hit the start cell, make _sure_ we always select it.
-        ranks[cell] = 99999;
-        return;
-      }
-
-      if (features[cells.features[cell]].type === FeatureType.LAKE) {
-        // If we hit a lake cell (other marine cells should be ignored), make sure to associate it only with
-        // lake start cells.
-        ranks[cell] =
-          features[cells.features[startCell]].type === FeatureType.LAKE
-            ? 99999
-            : -99999;
-        return;
-      } else if (
-        features[cells.features[startCell]].type === FeatureType.LAKE
-      ) {
-        // Same thing if we hit a land cell and are generating a lake area.
-        ranks[cell] =
-          features[cells.features[cell]].type === FeatureType.LAKE
-            ? 99999
-            : -99999;
-        return;
-      }
-
-      // We value elevation close to the start cell
-      if (cells.heights[cell] === cells.heights[startCell]) {
-        ranks[cell] += 20;
-      } else if (
-        cells.heights[cell] > cells.heights[startCell] - 5 ||
-        cells.heights[cell] < cells.heights[startCell] + 5
-      ) {
-        ranks[cell] +=
-          (cells.heights[cell] > cells.heights[startCell]
-            ? cells.heights[cell] - cells.heights[startCell]
-            : cells.heights[startCell] - cells.heights[cell]) * 5;
-      } else {
-        ranks[cell] -= 10;
-      }
-
-      // We value the same, or close, biome to the start cell
-      if (cells.biomes[cell] === cells.biomes[startCell]) {
-        ranks[cell] += 20;
-      } else if (
-        cells.temperatures[cell] > cells.temperatures[startCell] - 5 ||
-        cells.temperatures[cell] < cells.temperatures[startCell] + 5
-      ) {
-        // if they're different biomes, use the temperature and precipitation
-        ranks[cell] +=
-          (cells.temperatures[cell] > cells.temperatures[startCell]
-            ? cells.temperatures[cell] - cells.temperatures[startCell]
-            : cells.temperatures[startCell] - cells.temperatures[cell]) * 5;
-        ranks[cell] +=
-          (cells.precipitation[cell] > cells.precipitation[startCell]
-            ? cells.precipitation[cell] - cells.precipitation[startCell]
-            : cells.precipitation[startCell] - cells.precipitation[cell]) * 5;
-      }
-
-      // Cut any cell that is not "connected" to the start cell
-      if (isSeparatedFromStart(cells, cell, startCell)) {
-        // TODO: This does not check if the start cell _is_ a river, which would lead to a river overlap
-        ranks[cell] -= 30;
-      }
-
-      if (cells.types[cell] === CellType.Land) {
-        // estuary is valued
-        if (cells.rivers[cell]) {
-          ranks[cell] += 15;
-        }
-
-        const feature = features[cells.features[cells.haven[i]]];
-        if (feature.type === FeatureType.LAKE) {
-          const lakeFeature = feature as unknown as LakeFeature;
-          if (lakeFeature.group === LakeFeatureGroup.FRESHWATER) {
-            ranks[cell] += 30;
-          } else if (lakeFeature.group === LakeFeatureGroup.SALT) {
-            ranks[cell] += 10;
-          } else if (lakeFeature.group === LakeFeatureGroup.FROZEN) {
-            ranks[cell] += 1;
-          } else if (lakeFeature.group === LakeFeatureGroup.DRY) {
-            ranks[cell] -= 5;
-          } else if (lakeFeature.group === LakeFeatureGroup.LAVA) {
-            ranks[cell] -= 30;
-          }
-        } else {
-          // ocean coast is valued
-          ranks[cell] += 5;
-          // safe sea harbor is valued
-          if (cells.harbor[i] === 1) {
-            ranks[cell] += 20;
-          }
-        }
-      }
-    });
-
-    // Finally, filter out any cell that have negative
-    areaCells = areaCells.filter(c => ranks[c] > 0);
 
     // Then create the area and add it
     const newArea: Area = {
@@ -440,8 +472,96 @@ export const defineAreas = (
     areaCells.forEach(c => {
       used[c] = true;
     });
-    queue = cells.indexes.filter(i => !used[i]);
+    queue = queue.filter(i => !used[i]);
   }
+
+  // Run a cleanup of all the areas to remove any area that is smaller than the minimum
+  const areaQueue = areas.map(a => a.index);
+  while (areaQueue.length) {
+    const currentArea = areas[areaQueue.pop() as number];
+    if (currentArea.cells.length >= minAreaSize) {
+      continue;
+    }
+
+    // If the size of the area is smaller than the minimum even while looking at the neighbors,
+    // try to merge this cell into an adjacent area. Find the one with the smallest cell count.
+    const allAdjacentCells = currentArea.cells
+      .map(c =>
+        cells.adjacentCells[c].filter(
+          sub => sub !== c && !currentArea.cells.includes(sub)
+        )
+      )
+      .flat(1);
+    let adjacent = areas.filter(
+      a =>
+        features[cells.features[a.center]].type !== FeatureType.OCEAN &&
+        a.cells.some(c => allAdjacentCells.includes(c))
+    );
+
+    if (
+      features[cells.features[currentArea.center]].type === FeatureType.LAKE
+    ) {
+      // If we hit a single cell in a lake, assign it to another area of that lake if any
+      adjacent = adjacent.filter(
+        a => features[cells.features[a.center]].type === FeatureType.LAKE
+      );
+    } else {
+      adjacent = adjacent.filter(
+        a => features[cells.features[a.center]].type !== FeatureType.LAKE
+      );
+    }
+
+    if (
+      cells.biomes[currentArea.center] !== BiomeIndexes.MARINE &&
+      adjacent.every(a => a.properties.biome === BiomeIndexes.MARINE)
+    ) {
+      // If all adjacent cells are marine cells, it's a lone island. Ignore and keep going
+      continue;
+    }
+
+    if (adjacent.length) {
+      // If we found an adjacent area, assign this area's cells to it.
+      const smallestAdjacent = d3Array.least(
+        adjacent,
+        a => a.cells.length
+      ) as Area;
+      const areaCells = [...smallestAdjacent.cells, ...currentArea.cells];
+
+      areas = areas
+        .filter(a => a !== currentArea)
+        .map(a => {
+          if (a.index === smallestAdjacent.index) {
+            return {
+              center: smallestAdjacent.center,
+              cells: areaCells,
+              adjacentAreas: [],
+              border: [],
+              index: smallestAdjacent.index,
+              properties: {
+                biome: cells.biomes[smallestAdjacent.center],
+                features: [...new Set(areaCells.map(c => cells.features[c]))],
+                harbor: [...new Set(areaCells.map(c => cells.harbor[c]))],
+                height: cells.heights[smallestAdjacent.center],
+                population: 0,
+                precipitation: cells.precipitation[smallestAdjacent.center],
+                temperature: cells.temperatures[smallestAdjacent.center],
+              },
+            };
+          }
+
+          return a;
+        });
+
+      areas = areas.filter(a => a !== currentArea);
+    }
+  }
+
+  // Now that we've cleaned up all the areas, reassign the indexes to make sure they match their
+  // array positions.
+  areas.forEach((a, index) => {
+    a.index = index;
+    assignAdjacent(cells, a, areas);
+  });
 
   return areas;
 };

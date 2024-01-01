@@ -95,6 +95,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
   const drawCoastline = useCallback(
     (g: GraphicsType) => {
       g.clear();
+
       physicalMap.cells.pathPoints.coastlines.forEach(path => {
         g.lineStyle(2, coastlineColor, 1, 0.5);
 
