@@ -362,8 +362,6 @@ export const defineAreas = (
       },
     };
 
-    // Assign adjacent areas
-    assignAdjacent(cells, newArea, areas);
     areas.push(newArea);
 
     // Set those cells as used, then clear the queue for the next cells
@@ -464,8 +462,6 @@ export const defineAreas = (
       },
     };
 
-    // Assign adjacent areas
-    assignAdjacent(cells, newArea, areas);
     areas.push(newArea);
 
     // Set those cells as used, then clear the queue for the next cells
@@ -560,6 +556,7 @@ export const defineAreas = (
   // array positions.
   areas.forEach((a, index) => {
     a.index = index;
+    a.adjacentAreas = [];
     assignAdjacent(cells, a, areas);
   });
 

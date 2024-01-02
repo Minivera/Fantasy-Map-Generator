@@ -109,9 +109,15 @@ export interface Region {
   flavour?: RegionFlavour;
 
   /**
-   * The points that make up this regions's border, for drawing purposes.
+   * The points that make up this region's border, for drawing purposes.
    */
   border: Point[];
+
+  /**
+   * Paths of regions that overlap this region's border, help with drawing holes in the graph to make sure
+   * regions don't overlap each other visually.
+   */
+  borderHoles: Point[][];
 
   /**
    * Areas adjacent to this region, to connect them for other calculations.

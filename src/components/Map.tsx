@@ -40,14 +40,15 @@ export const Map: FunctionComponent<MapProps> = ({
           physicalMap={physicalMap}
           shouldDrawLakes={true}
           shouldDrawRivers={true}
-          shouldDrawBiomes={false}
-          shouldDrawHeightmap={true}
+          shouldDrawBiomes={true}
+          shouldDrawHeightmap={false}
           shouldDrawIcons={false}
-          shouldDrawCells={true}
+          shouldDrawCells={false}
         />
         <Areas
           areaMap={areaMap}
           physicalMap={physicalMap}
+          shouldDrawArea={false}
           shouldDrawRegions={true}
         />
       </ViewportContainer>
