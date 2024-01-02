@@ -93,6 +93,11 @@ export interface RegionFlavour {
  */
 export interface Region {
   /**
+   * The region's index, use to generate the color and find the region on the map.
+   */
+  index: number;
+
+  /**
    * Which areas make up this region, they should be selected pretty rigorously to make sure we don't over-extend a
    * region.
    */
@@ -102,4 +107,21 @@ export interface Region {
    * This region's flavour information.
    */
   flavour?: RegionFlavour;
+
+  /**
+   * The points that make up this regions's border, for drawing purposes.
+   */
+  border: Point[];
+
+  /**
+   * Areas adjacent to this region, to connect them for other calculations.
+   */
+  adjacentRegions: Regions;
+}
+
+export type Regions = Region[];
+
+export interface AreaMap {
+  areas: Areas;
+  regions: Regions;
 }

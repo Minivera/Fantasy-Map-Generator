@@ -5,7 +5,7 @@ import { PackedGrid } from './types/grid.ts';
 import { generate as generatePhysicalMap } from './map/physical';
 import { randomRange } from './utils/probability.ts';
 import { Map } from './components/Map.tsx';
-import { Areas } from './types/areas.ts';
+import { AreaMap } from './types/areas.ts';
 import { generateAreaMap } from './map/areas';
 
 export const App = () => {
@@ -17,7 +17,7 @@ export const App = () => {
   const [physicalMap, setPhyisicalMap] = useState<PackedGrid | null>(null);
   const [physicalMapLoaded, setPhysicalMapLoaded] = useState(false);
 
-  const [areaMap, setAreaMap] = useState<Areas | null>(null);
+  const [areaMap, setAreaMap] = useState<AreaMap | null>(null);
   const [areaMapLoaded, setAreaMaoLoaded] = useState(false);
 
   useEffect(() => {
@@ -80,7 +80,6 @@ export const App = () => {
     setAreaMaoLoaded(true);
   }, [randomizer, physicalMap, physicalMapLoaded]);
 
-  console.log(physicalMap, areaMap);
   return physicalMapLoaded && areaMapLoaded ? (
     <Map
       physicalMap={physicalMap}

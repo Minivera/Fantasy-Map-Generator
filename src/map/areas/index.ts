@@ -1,7 +1,10 @@
 import Alea from 'alea';
 
 import { PackedGrid } from '../../types/grid.ts';
+
 import { defineAreas, groupAreas } from './areas.ts';
+import { defineRegions, groupRegions } from './regions.ts';
+import { AreaMap } from '../../types/areas.ts';
 
 export const generateAreaMap = (
   randomizer: ReturnType<typeof Alea>,
@@ -36,9 +39,15 @@ export const generateAreaMap = (
      */
     graphHeight: number;
   }
-) => {
+): AreaMap => {
   const areas = defineAreas(randomizer, physicalMap, options);
   groupAreas(physicalMap, areas, options.graphWidth, options.graphHeight);
 
-  return areas;
+  const regions = defineRegions(physicalMap, areas);
+  groupRegions(physicalMap, regions, options.graphWidth, options.graphHeight);
+
+  return {
+    areas,
+    regions,
+  };
 };
