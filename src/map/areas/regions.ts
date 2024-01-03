@@ -1,9 +1,10 @@
 import * as d3Polygon from 'd3-polygon';
 
-import { FeatureType, PackedGrid } from '../../types/grid.ts';
+import { FeatureType, PackedGrid, Point } from '../../types/grid.ts';
 import { Area, Areas, Region, Regions } from '../../types/areas.ts';
 import { clipPoly } from '../../utils/polygons.ts';
 import { BiomeIndexes } from '../../data/biomes.ts';
+import * as d3 from 'd3-array';
 
 /**
  * Assigns the adjacent regions of this regions after generation, this should allow us to know which
@@ -92,7 +93,7 @@ export const defineRegions = (
     regionAreas.push(...captured);
     captured = [];
 
-    const newRegion = {
+    const newRegion: Region = {
       index: regions.length,
       adjacentRegions: [],
       areas: regionAreas,
@@ -164,11 +165,13 @@ export const defineRegions = (
     // Filter out the adjacent areas until we have no candidates left. The filter function will be reused
     // in the loop multiple times.
     const regionAreas: Areas = [currentArea];
-    let captured: Areas = currentArea.adjacentAreas.filter(areaFilter);
+    let captured: Areas = currentArea.adjacentAreas.filter(
+      area => !used[area.index] && areaFilter(area)
+    );
 
     while (captured.length) {
       regionAreas.push(...captured);
-      captured = regionAreas
+      captured = captured
         .map(a => a.adjacentAreas)
         .flat(1)
         .filter((val, index, array) => array.indexOf(val) === index)
@@ -181,7 +184,7 @@ export const defineRegions = (
     regionAreas.push(...captured);
     captured = [];
 
-    const newRegion = {
+    const newRegion: Region = {
       index: regions.length,
       adjacentRegions: [],
       areas: regionAreas,
@@ -195,6 +198,8 @@ export const defineRegions = (
     regionAreas.forEach(area => {
       used[area.index] = true;
     });
+
+    // TODO: Clean very small regions by merging them to other regions, like for areas.
 
     queue = queue.filter(a => !used[a.index]);
   }
@@ -213,7 +218,7 @@ export const groupRegions = (
   graphWidth: number,
   graphHeight: number
 ) => {
-  const { cells, vertices } = grid;
+  const { cells, vertices, features } = grid;
 
   const cellsToRegion: Record<number, number> = {};
   cells.indexes.forEach(c => {
@@ -230,12 +235,12 @@ export const groupRegions = (
   const used = new Uint8Array(n);
 
   // connect vertices to chain
-  const connectVertices = (start: number, r: number) => {
+  const connectVertices = (start: number, region: number) => {
     // vertices chain to form a path
     const chain: number[] = [];
     for (
       let i = 0, current = start;
-      i === 0 || (current !== start && i < 40000);
+      i === 0 || (current !== start && i < 50000);
       i++
     ) {
       // previous vertex in chain
@@ -245,10 +250,13 @@ export const groupRegions = (
 
       // cells adjacent to vertex
       const c = vertices.adjacent[current];
+      c.forEach(c => {
+        used[c] = 1;
+      });
 
-      const c0 = c[0] >= n || cellsToRegion[c[0]] !== r;
-      const c1 = c[1] >= n || cellsToRegion[c[1]] !== r;
-      const c2 = c[2] >= n || cellsToRegion[c[2]] !== r;
+      const c0 = c[0] >= n || cellsToRegion[c[0]] !== region;
+      const c1 = c[1] >= n || cellsToRegion[c[1]] !== region;
+      const c2 = c[2] >= n || cellsToRegion[c[2]] !== region;
 
       // neighboring vertices
       const v = vertices.neighbours[current];
@@ -267,31 +275,52 @@ export const groupRegions = (
     return chain;
   };
 
-  for (const i of cells.indexes) {
-    // no need to mark marine biome (liquid water)
-    if (!cells.biomes[i]) {
-      continue;
+  regions.forEach(region => {
+    // Skip the ocean, no need to mark it
+    if (
+      region.areas.some(
+        area => features[cells.features[area.center]].type === FeatureType.OCEAN
+      )
+    ) {
+      return;
     }
 
-    // already marked
-    if (used[i]) {
-      continue;
+    const allAreaCells = region.areas.map(area => area.cells).flat(1);
+    const allVerticesCoordinates = allAreaCells
+      .map(c => cells.vertices[c].map(v => vertices.coordinates[v]))
+      .flat(1);
+    const hull = d3Polygon.polygonHull(allVerticesCoordinates) as Point[];
+
+    /*
+    const edgeCell = allAreaCells.find(cell => {
+      const onborder = cells.adjacentCells[cell].some(
+        n => cellsToRegion[n] !== cellsToRegion[cell]
+      );
+
+      return onborder;
+    });
+
+    if (!edgeCell) {
+      return;
     }
 
-    const region = regions.find(r => r.index === cellsToRegion[i]) as Region;
-    const onborder = cells.adjacentCells[i].some(
-      n => cellsToRegion[n] !== cellsToRegion[i]
-    );
-    if (!onborder) {
-      continue;
-    }
-
-    const edgeVerticle = cells.vertices[i].find(v =>
-      vertices.adjacent[v].some(c => cellsToRegion[c] !== cellsToRegion[i])
+    const edgeVerticle = cells.vertices[edgeCell].find(v =>
+      vertices.adjacent[v].some(
+        c => cellsToRegion[c] !== cellsToRegion[edgeCell]
+      )
     ) as number;
-    const chain = connectVertices(edgeVerticle, cellsToRegion[i]);
+    */
+    const chain = connectVertices(
+      vertices.coordinates.findIndex(
+        (v, index) =>
+          vertices.adjacent[index].some(
+            c => cellsToRegion[c] === region.index
+          ) && hull.includes(v)
+      ),
+      region.index
+    );
     if (chain.length < 3) {
-      continue;
+      return;
     }
 
     region.border = clipPoly(
@@ -299,7 +328,7 @@ export const groupRegions = (
       graphWidth,
       graphHeight
     );
-  }
+  });
 
   // After we calculated all the borders, check if a border is within another border
   // with d3-polygon, that way we know which hole to create for regions.
@@ -323,5 +352,18 @@ export const groupRegions = (
         region.borderHoles.push(otherRegion.border);
       }
     });
+
+    // Get the rulers
+    const from =
+      region.border[
+        d3.leastIndex(region.border, (a, b) => a[0] - b[0]) as number
+      ];
+    const to =
+      region.border[
+        d3.leastIndex(region.border, (a, b) => b[0] - a[0]) as number
+      ];
+    const center = d3Polygon.polygonCentroid(region.border);
+
+    region.ruler = [from, center, to];
   });
 };

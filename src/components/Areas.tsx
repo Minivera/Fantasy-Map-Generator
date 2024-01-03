@@ -1,11 +1,11 @@
-import { FunctionComponent, useCallback } from 'react';
-import { Graphics as GraphicsType } from 'pixi.js';
-import { Container, Graphics, useApp } from '@pixi/react';
+import { FunctionComponent, useCallback, useMemo } from 'react';
+import { Graphics as GraphicsType, Point, Text } from 'pixi.js';
+import { Container, Graphics, SimpleRope, useApp } from '@pixi/react';
 
 import { drawD3ClosedCurve } from '../pixiUtils/draw.ts';
 import { AreaMap } from '../types/areas.ts';
 import { randomDistinguishableColor } from '../utils/colors.ts';
-import { PackedGrid } from '../types/grid.ts';
+import { FeatureType, PackedGrid } from '../types/grid.ts';
 
 interface AreasProps {
   areaMap: AreaMap;
@@ -13,12 +13,18 @@ interface AreasProps {
 
   shouldDrawArea?: boolean;
   shouldDrawRegions?: boolean;
+  shouldDrawRegionLabels?: boolean;
 }
+
+const debugRegions: boolean = false;
+const debug: number | undefined = undefined;
 
 export const Areas: FunctionComponent<AreasProps> = ({
   areaMap,
+  physicalMap,
   shouldDrawArea = false,
   shouldDrawRegions = false,
+  shouldDrawRegionLabels = false,
 }) => {
   const app = useApp();
 
@@ -28,15 +34,46 @@ export const Areas: FunctionComponent<AreasProps> = ({
       g.clear();
 
       areaMap.areas.forEach(area => {
-        const areaColor = randomDistinguishableColor(area.index);
+        if (
+          !debug ||
+          areaMap.regions.some(r => r.index === debug && r.areas.includes(area))
+        ) {
+          const areaColor = randomDistinguishableColor(area.index);
 
-        g.lineStyle(1, areaColor, 1);
-        g.beginFill(areaColor, 0.3);
-        drawD3ClosedCurve(g, area.border);
-        g.endFill();
+          g.lineStyle(1, areaColor, 1);
+          g.beginFill(areaColor, 0.3);
+          drawD3ClosedCurve(g, area.border);
+          g.endFill();
+
+          if (!debug) {
+            return;
+          }
+
+          area.adjacentAreas.forEach(adjacent => {
+            if (
+              physicalMap.features[adjacent.properties.features[0]].type ===
+                FeatureType.OCEAN ||
+              physicalMap.features[area.properties.features[0]].type ===
+                FeatureType.OCEAN
+            ) {
+              return;
+            }
+
+            g.lineStyle(1, areaColor, 1);
+            g.moveTo(
+              physicalMap.cells.points[area.center][0],
+              physicalMap.cells.points[area.center][1]
+            );
+            g.lineTo(
+              physicalMap.cells.points[adjacent.center][0],
+              physicalMap.cells.points[adjacent.center][1]
+            );
+            g.closePath();
+          });
+        }
       });
     },
-    [areaMap, app]
+    [areaMap, physicalMap, app]
   );
 
   const drawRegions = useCallback(
@@ -45,6 +82,13 @@ export const Areas: FunctionComponent<AreasProps> = ({
 
       areaMap.regions.forEach(region => {
         const regionColor = randomDistinguishableColor(region.index);
+
+        if (debug && region.index !== debug) {
+          return;
+        }
+        if (debug) {
+          console.log(region.border);
+        }
 
         g.lineStyle(1, regionColor, 1);
         g.beginFill(regionColor, 0.7);
@@ -58,10 +102,54 @@ export const Areas: FunctionComponent<AreasProps> = ({
         });
 
         g.endFill();
+
+        if (!debugRegions) {
+          return;
+        }
+
+        g.lineStyle(1, regionColor, 1);
+        region.areas.forEach(area => {
+          area.cells.forEach(c => {
+            g.drawCircle(
+              physicalMap.cells.points[c][0],
+              physicalMap.cells.points[c][1],
+              1
+            );
+
+            const text = new Text(region.index, {
+              fontSize: 7,
+              fill: 0x000000,
+            });
+            text.x = physicalMap.cells.points[c][0];
+            text.y = physicalMap.cells.points[c][1];
+
+            g.addChild(text);
+          });
+        });
       });
     },
-    [areaMap, app]
+    [areaMap, physicalMap, app]
   );
+
+  const regionLabels = useMemo(() => {
+    if (!shouldDrawRegionLabels) {
+      return [];
+    }
+
+    return areaMap.regions.map(region => {
+      if (!region.ruler?.length) {
+        return null;
+      }
+
+      const text = new Text('Some region', {
+        fontSize: 50,
+        fill: 0x000000,
+      });
+      text.updateText(false);
+
+      return text.texture;
+    });
+  }, [areaMap, shouldDrawRegionLabels]);
 
   if (!areaMap) {
     return null;
@@ -71,6 +159,24 @@ export const Areas: FunctionComponent<AreasProps> = ({
     <Container>
       {shouldDrawArea && <Graphics draw={drawAreas} />}
       {shouldDrawRegions && <Graphics draw={drawRegions} />}
+      {regionLabels.map((labelTexture, index) => {
+        if (!labelTexture) {
+          return null;
+        }
+
+        const region = areaMap.regions[index];
+        if (!region.ruler) {
+          return null;
+        }
+
+        return (
+          <SimpleRope
+            key={region.index}
+            texture={labelTexture}
+            points={region.ruler.map(p => new Point(p[0], p[1]))}
+          />
+        );
+      })}
     </Container>
   );
 };

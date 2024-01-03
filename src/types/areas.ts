@@ -120,6 +120,12 @@ export interface Region {
   borderHoles: Point[][];
 
   /**
+   * Three points that define where to position text or rulers within this area. The points will be the
+   * two furthermost points on the x axis, and the center of the polygon as the middle point.
+   */
+  ruler?: [Point, Point, Point];
+
+  /**
    * Areas adjacent to this region, to connect them for other calculations.
    */
   adjacentRegions: Regions;

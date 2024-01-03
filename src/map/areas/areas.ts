@@ -7,7 +7,6 @@ import {
   FeatureType,
   LakeFeature,
   LakeFeatureGroup,
-  PackedCells,
   PackedGrid,
   Point,
 } from '../../types/grid.ts';
@@ -21,18 +20,32 @@ import { insertIntoSorted } from '../../utils/arrays.ts';
  * Assigns the adjacent areas of this area after generation, this should allow us to know which
  * areas are near one another to capture during political generation, or for creating regions.
  */
-const assignAdjacent = (cells: PackedCells, area: Area, others: Areas) => {
+const assignAdjacent = (physicalMap: PackedGrid, area: Area, others: Areas) => {
+  const { cells, vertices } = physicalMap;
+
   const known: boolean[] = new Array(others.length)
     .fill(false)
     .map(a => a === area || area.adjacentAreas.includes(a));
 
   area.cells.forEach(cell => {
     // Find the neighboring areas by looking at the other areas and getting any area where one of the cell's
-    // adjacent cell is in another area that we don't have already registered as neighbor.
+    // adjacent cell is in another area that we don't have already registered as neighbor, and at least two
+    // vertices touch.
     const neighboringAreas: Areas = [];
     cells.adjacentCells[cell].forEach(adjacent => {
       const found = others
-        .filter(a => a.cells.includes(adjacent))
+        .filter(a =>
+          a.cells.some(c => {
+            return (
+              // If this cell is in the area
+              c === adjacent &&
+              // And the vertices of that cell touch the original cell at least twice
+              cells.vertices[c].filter(v =>
+                vertices.adjacent[v].some(adj => adj === cell)
+              ).length >= 2
+            );
+          })
+        )
         .filter(a => !known[a.index]);
       if (found.length) {
         // Then assign the neighboring areas to the found cells
@@ -557,7 +570,7 @@ export const defineAreas = (
   areas.forEach((a, index) => {
     a.index = index;
     a.adjacentAreas = [];
-    assignAdjacent(cells, a, areas);
+    assignAdjacent(physicalMap, a, areas);
   });
 
   return areas;

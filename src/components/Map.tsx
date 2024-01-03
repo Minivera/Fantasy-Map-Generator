@@ -49,7 +49,8 @@ export const Map: FunctionComponent<MapProps> = ({
           areaMap={areaMap}
           physicalMap={physicalMap}
           shouldDrawArea={false}
-          shouldDrawRegions={true}
+          shouldDrawRegions={false}
+          shouldDrawRegionLabels={false}
         />
       </ViewportContainer>
     </Stage>
