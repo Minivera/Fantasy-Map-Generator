@@ -364,6 +364,17 @@ export const groupRegions = (
       ];
     const center = d3Polygon.polygonCentroid(region.border);
 
+    // Now that we've got the center, we'll want to move the y closer to the actual center of the
+    // region. Get all y points that are within 5 pixels of the center x.
+    const yCandidates = region.border.filter(
+      point => point[0] < center[0] + 5 || point[0] > center[0] - 5
+    );
+
+    // Then calculate the center between the highest and lowest y position near the center.
+    const topY = d3.least(yCandidates, (a, b) => a[1] - b[1]) as Point;
+    const bottomY = d3.least(yCandidates, (a, b) => b[1] - a[1]) as Point;
+
+    center[1] = topY[1] + (bottomY[1] - topY[1]) / 2;
     region.ruler = [from, center, to];
   });
 };

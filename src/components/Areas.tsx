@@ -6,6 +6,7 @@ import { drawD3ClosedCurve } from '../pixiUtils/draw.ts';
 import { AreaMap } from '../types/areas.ts';
 import { randomDistinguishableColor } from '../utils/colors.ts';
 import { FeatureType, PackedGrid } from '../types/grid.ts';
+import { getCurvedTextPoints } from '../utils/text.ts';
 
 interface AreasProps {
   areaMap: AreaMap;
@@ -141,13 +142,20 @@ export const Areas: FunctionComponent<AreasProps> = ({
         return null;
       }
 
+      const curvedText = getCurvedTextPoints('Some region', region.ruler);
+
       const text = new Text('Some region', {
         fontSize: 50,
         fill: 0x000000,
       });
+      text.scale = { y: 0.2, x: 0.2 };
       text.updateText(false);
 
-      return text.texture;
+      return {
+        texture: text.texture,
+        rope: curvedText.rope.map(p => new Point(p[0], p[1])),
+        scale: curvedText.scale,
+      };
     });
   }, [areaMap, shouldDrawRegionLabels]);
 
@@ -172,8 +180,12 @@ export const Areas: FunctionComponent<AreasProps> = ({
         return (
           <SimpleRope
             key={region.index}
-            texture={labelTexture}
-            points={region.ruler.map(p => new Point(p[0], p[1]))}
+            texture={labelTexture.texture}
+            // @ts-expect-error TS2322
+            points={labelTexture.rope}
+            scale={labelTexture.scale}
+            pivot={region.ruler[1]}
+            position={region.ruler[1]}
           />
         );
       })}
