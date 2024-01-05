@@ -145,10 +145,9 @@ export const Areas: FunctionComponent<AreasProps> = ({
       const curvedText = getCurvedTextPoints('Some region', region.ruler);
 
       const text = new Text('Some region', {
-        fontSize: 50,
+        fontSize: 50 * curvedText.scale,
         fill: 0x000000,
       });
-      text.scale = { y: 0.2, x: 0.2 };
       text.updateText(false);
 
       return {

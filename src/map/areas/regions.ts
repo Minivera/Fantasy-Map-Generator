@@ -374,6 +374,7 @@ export const groupRegions = (
     const topY = d3.least(yCandidates, (a, b) => a[1] - b[1]) as Point;
     const bottomY = d3.least(yCandidates, (a, b) => b[1] - a[1]) as Point;
 
+    // Chose the center as the center between the two ys rather than the polygon center
     center[1] = topY[1] + (bottomY[1] - topY[1]) / 2;
     region.ruler = [from, center, to];
   });
