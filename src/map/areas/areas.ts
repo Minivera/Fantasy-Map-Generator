@@ -560,8 +560,6 @@ export const defineAreas = (
 
           return a;
         });
-
-      areas = areas.filter(a => a !== currentArea);
     }
   }
 

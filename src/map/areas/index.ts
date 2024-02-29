@@ -30,6 +30,12 @@ export const generateAreaMap = (
     cellsToDrop: number;
 
     /**
+     * The minimum area size for a single region. The generation will try to make sure all regions are, at least, this
+     * size. Smaller regions may still exist if it's not possible to make them bigger.
+     */
+    minRegionSize: number;
+
+    /**
      * Width of the physical map graph to display on scree.
      */
     graphWidth: number;
@@ -43,7 +49,7 @@ export const generateAreaMap = (
   const areas = defineAreas(randomizer, physicalMap, options);
   groupAreas(physicalMap, areas, options.graphWidth, options.graphHeight);
 
-  const regions = defineRegions(physicalMap, areas);
+  const regions = defineRegions(physicalMap, areas, options);
   groupRegions(physicalMap, regions, options.graphWidth, options.graphHeight);
 
   return {

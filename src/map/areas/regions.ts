@@ -1,10 +1,10 @@
 import * as d3Polygon from 'd3-polygon';
+import * as d3Array from 'd3-array';
 
 import { FeatureType, PackedGrid, Point } from '../../types/grid.ts';
 import { Area, Areas, Region, Regions } from '../../types/areas.ts';
 import { clipPoly } from '../../utils/polygons.ts';
 import { BiomeIndexes } from '../../data/biomes.ts';
-import * as d3 from 'd3-array';
 
 /**
  * Assigns the adjacent regions of this regions after generation, this should allow us to know which
@@ -56,11 +56,15 @@ const assignAdjacent = (region: Region, others: Regions) => {
  */
 export const defineRegions = (
   physicalMap: PackedGrid,
-  areaMap: Areas
+  areaMap: Areas,
+  options: {
+    minRegionSize: number;
+  }
 ): Regions => {
   const { cells, features } = physicalMap;
+  const { minRegionSize } = options;
 
-  const regions: Regions = [];
+  let regions: Regions = [];
 
   // Start with identifying the lakes, so we don't capture them later.
   let queue = areaMap.filter(
@@ -199,10 +203,74 @@ export const defineRegions = (
       used[area.index] = true;
     });
 
-    // TODO: Clean very small regions by merging them to other regions, like for areas.
-
     queue = queue.filter(a => !used[a.index]);
   }
+
+  // Run a cleanup of all the regions to remove any regions that is smaller than the minimum
+  const regionsQueue = regions.map(a => a.index);
+  while (regionsQueue.length) {
+    const currentRegion = regions[regionsQueue.pop() as number];
+    if (currentRegion.areas.length >= minRegionSize) {
+      continue;
+    }
+
+    // TODO: Skip the ocean based regions so we don't run into infinite loops
+
+    // If the size of the region is smaller than the minimum even while looking at the neighbors,
+    // try to merge this cell into an adjacent area. Find the one with the smallest cell count.
+    const allAdjacentAreas = [
+      ...new Set(
+        currentRegion.areas
+          .map(a =>
+            a.adjacentAreas.filter(
+              other => !currentRegion.areas.includes(other)
+            )
+          )
+          .flat(1)
+      ),
+    ];
+    const adjacentRegions = regions.filter(
+      r =>
+        r.areas.every(
+          area =>
+            features[cells.features[area.center]].type !== FeatureType.OCEAN &&
+            features[cells.features[area.center]].type !== FeatureType.LAKE
+        ) && r.areas.some(a => allAdjacentAreas.includes(a))
+    );
+
+    if (adjacentRegions.length) {
+      // If we found an adjacent region, then look up which is the smallest and assign this region's area to it.
+      const smallestAdjacent = d3Array.least(
+        adjacentRegions,
+        a => a.areas.length
+      ) as Region;
+      const regionAreas = [...smallestAdjacent.areas, ...currentRegion.areas];
+
+      regions = regions
+        .filter(r => r !== currentRegion)
+        .map(r => {
+          if (r.index === smallestAdjacent.index) {
+            return {
+              index: smallestAdjacent.index,
+              adjacentRegions: [],
+              areas: regionAreas,
+              border: [],
+              borderHoles: [],
+            };
+          }
+
+          return r;
+        });
+    }
+  }
+
+  // Now that we've cleaned up all the regions, reassign the indexes to make sure they match their
+  // array positions.
+  regions.forEach((r, index) => {
+    r.index = index;
+    r.adjacentRegions = [];
+    assignAdjacent(r, regions);
+  });
 
   return regions;
 };
@@ -282,7 +350,7 @@ export const groupRegions = (
         area => features[cells.features[area.center]].type === FeatureType.OCEAN
       )
     ) {
-      return;
+      // return;
     }
 
     const allAreaCells = region.areas.map(area => area.cells).flat(1);
@@ -291,25 +359,6 @@ export const groupRegions = (
       .flat(1);
     const hull = d3Polygon.polygonHull(allVerticesCoordinates) as Point[];
 
-    /*
-    const edgeCell = allAreaCells.find(cell => {
-      const onborder = cells.adjacentCells[cell].some(
-        n => cellsToRegion[n] !== cellsToRegion[cell]
-      );
-
-      return onborder;
-    });
-
-    if (!edgeCell) {
-      return;
-    }
-
-    const edgeVerticle = cells.vertices[edgeCell].find(v =>
-      vertices.adjacent[v].some(
-        c => cellsToRegion[c] !== cellsToRegion[edgeCell]
-      )
-    ) as number;
-    */
     const chain = connectVertices(
       vertices.coordinates.findIndex(
         (v, index) =>
@@ -356,11 +405,11 @@ export const groupRegions = (
     // Get the rulers
     const from =
       region.border[
-        d3.leastIndex(region.border, (a, b) => a[0] - b[0]) as number
+        d3Array.leastIndex(region.border, (a, b) => a[0] - b[0]) as number
       ];
     const to =
       region.border[
-        d3.leastIndex(region.border, (a, b) => b[0] - a[0]) as number
+        d3Array.leastIndex(region.border, (a, b) => b[0] - a[0]) as number
       ];
     const center = d3Polygon.polygonCentroid(region.border);
 
@@ -371,8 +420,8 @@ export const groupRegions = (
     );
 
     // Then calculate the center between the highest and lowest y position near the center.
-    const topY = d3.least(yCandidates, (a, b) => a[1] - b[1]) as Point;
-    const bottomY = d3.least(yCandidates, (a, b) => b[1] - a[1]) as Point;
+    const topY = d3Array.least(yCandidates, (a, b) => a[1] - b[1]) as Point;
+    const bottomY = d3Array.least(yCandidates, (a, b) => b[1] - a[1]) as Point;
 
     // Chose the center as the center between the two ys rather than the polygon center
     center[1] = topY[1] + (bottomY[1] - topY[1]) / 2;
