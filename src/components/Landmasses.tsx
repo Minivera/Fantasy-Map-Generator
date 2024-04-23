@@ -8,7 +8,11 @@ import { LakeFeature, PackedGrid } from '../types/grid.ts';
 import { biomeColor, BiomeIndexes } from '../data/biomes.ts';
 import oceanPattern from '../assets/ocean_pattern1.png';
 import { LakeColors } from '../data/features.ts';
-import { drawD3ClosedCurve, drawD3RiverCurve } from '../pixiUtils/draw.ts';
+import {
+  drawD3ClosedCurve,
+  drawD3RiverCurve,
+  drawDebugPath,
+} from '../pixiUtils/draw.ts';
 import {
   cellsColor,
   coastlineColor,
@@ -31,6 +35,8 @@ interface LandmassesProps {
   shouldDrawIcons?: boolean;
 }
 
+const debugCoastlines = false;
+
 export const Landmasses: FunctionComponent<LandmassesProps> = ({
   physicalMap,
   shouldDrawCells = false,
@@ -45,33 +51,16 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
   // TODO: Extract all this logic when the drawing is finalized
   const drawOcean = useCallback(
     (g: GraphicsType) => {
-      const drawHole = () => {
-        g.beginHole();
-        physicalMap.cells.pathPoints.coastlines.forEach(path => {
-          g.beginFill(0x000000);
-
-          drawD3ClosedCurve(g, path);
-
-          g.endFill();
-        });
-
-        g.endHole();
-      };
-
       g.clear();
 
       // Render the rectangle's texture
       g.beginTextureFill({ texture: oceanTexture });
       g.drawRect(0, 0, app.screen.width, app.screen.height);
-      // Then draw a hole in the texture
-      drawHole();
       g.endFill();
 
       // Next, draw some color over it with opacity so the texture still shows up
       g.beginFill(oceanColor, 0.75);
       g.drawRect(0, 0, app.screen.width, app.screen.height);
-      // Then redraw the hole again
-      drawHole();
       g.endFill();
 
       // Finally, draw the layers for the continents outline and punch the continents hole into it.
@@ -83,9 +72,12 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         g.beginFill(oceanLayerColor, opacity);
         paths.forEach(path => {
           drawD3ClosedCurve(g, path);
+
+          if (debugCoastlines) {
+            drawDebugPath(g, path);
+          }
         });
 
-        drawHole();
         g.endFill();
       });
     },
@@ -100,6 +92,10 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         g.lineStyle(2, coastlineColor, 1, 0.5);
 
         drawD3ClosedCurve(g, path);
+
+        if (debugCoastlines) {
+          drawDebugPath(g, path);
+        }
       });
     },
     [physicalMap]

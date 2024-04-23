@@ -21,6 +21,8 @@ export const drawD3ClosedCurve = (g: GraphicsType, points: Point[]) => {
     // `bezierCurveTo`, which the pixijs graphics API fully supports. We force a conversion and use d3 to draw the
     // lines, which should allow us to use their solid algorithms.
     .context(g as unknown as CanvasRenderingContext2D)(points);
+
+  g.closePath();
 };
 
 export const drawD3RiverCurve = (g: GraphicsType, points: Point[]) => {
@@ -31,4 +33,21 @@ export const drawD3RiverCurve = (g: GraphicsType, points: Point[]) => {
     // `bezierCurveTo`, which the pixijs graphics API fully supports. We force a conversion and use d3 to draw the
     // lines, which should allow us to use their solid algorithms.
     .context(g as unknown as CanvasRenderingContext2D)(points);
+};
+
+export const drawDebugPath = (g: GraphicsType, path: Point[]) => {
+  g.lineStyle({
+    color: 0x00ff00,
+    width: 2,
+  });
+  path.forEach((point, index) => {
+    if (index === 0) {
+      g.moveTo(point[0], point[1]);
+    } else {
+      g.lineTo(point[0], point[1]);
+    }
+  });
+
+  g.lineTo(path[0][0], path[0][1]);
+  g.closePath();
 };
