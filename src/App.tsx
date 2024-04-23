@@ -75,7 +75,7 @@ export const App = () => {
         minAreaSize: 2,
         maxAreaSize: 7,
         cellsToDrop: 2,
-        minRegionSize: 10,
+        minRegionSize: 5,
       })
     );
     setAreaMaoLoaded(true);

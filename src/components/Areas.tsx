@@ -92,7 +92,7 @@ export const Areas: FunctionComponent<AreasProps> = ({
         }
 
         g.lineStyle(1, regionColor, 1);
-        g.beginFill(regionColor, 0.7);
+        g.beginFill(regionColor, 0.2);
         drawD3ClosedCurve(g, region.border);
 
         region.borderHoles.forEach(hole => {
@@ -121,8 +121,8 @@ export const Areas: FunctionComponent<AreasProps> = ({
               fontSize: 7,
               fill: 0x000000,
             });
-            text.x = physicalMap.cells.points[c][0];
-            text.y = physicalMap.cells.points[c][1];
+            text.x = physicalMap.cells.points[c][0] - 7;
+            text.y = physicalMap.cells.points[c][1] - 7;
 
             g.addChild(text);
           });

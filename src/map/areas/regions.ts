@@ -214,16 +214,30 @@ export const defineRegions = (
       continue;
     }
 
-    // TODO: Skip the ocean based regions so we don't run into infinite loops
+    // Skip the ocean-based regions, so we don't run into infinite loops
+    if (
+      currentRegion.areas.every(
+        area => features[cells.features[area.center]].type === FeatureType.OCEAN
+      )
+    ) {
+      continue;
+    }
 
     // If the size of the region is smaller than the minimum even while looking at the neighbors,
-    // try to merge this cell into an adjacent area. Find the one with the smallest cell count.
+    // try to merge this cell into an adjacent area. Find the one with the smallest cell count that
+    // matches the feature type (merge lakes into lakes)
     const allAdjacentAreas = [
       ...new Set(
         currentRegion.areas
           .map(a =>
-            a.adjacentAreas.filter(
-              other => !currentRegion.areas.includes(other)
+            a.adjacentAreas.filter(other =>
+              !currentRegion.areas.includes(other) &&
+              features[cells.features[a.center]].type !== FeatureType.OCEAN &&
+              features[cells.features[a.center]].type === FeatureType.LAKE
+                ? features[cells.features[other.center]].type ===
+                  FeatureType.LAKE
+                : features[cells.features[other.center]].type !==
+                  FeatureType.LAKE
             )
           )
           .flat(1)
@@ -231,11 +245,12 @@ export const defineRegions = (
     ];
     const adjacentRegions = regions.filter(
       r =>
+        r !== currentRegion &&
+        r.areas.some(a => allAdjacentAreas.includes(a)) &&
         r.areas.every(
           area =>
-            features[cells.features[area.center]].type !== FeatureType.OCEAN &&
-            features[cells.features[area.center]].type !== FeatureType.LAKE
-        ) && r.areas.some(a => allAdjacentAreas.includes(a))
+            features[cells.features[area.center]].type !== FeatureType.OCEAN
+        )
     );
 
     if (adjacentRegions.length) {
@@ -350,7 +365,7 @@ export const groupRegions = (
         area => features[cells.features[area.center]].type === FeatureType.OCEAN
       )
     ) {
-      // return;
+      return;
     }
 
     const allAreaCells = region.areas.map(area => area.cells).flat(1);
