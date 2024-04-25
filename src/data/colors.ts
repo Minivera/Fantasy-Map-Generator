@@ -1,4 +1,4 @@
-export const coastlineColor = '#808080';
+export const coastlineColor = '#c0af7a';
 export const cellsColor = '#808080';
 
 export const oceanColor = '#466eab';

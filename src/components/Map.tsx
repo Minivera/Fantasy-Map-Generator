@@ -42,6 +42,8 @@ export const Map: FunctionComponent<MapProps> = ({
           shouldDrawRivers={true}
           shouldDrawBiomes={true}
           shouldDrawHeightmap={false}
+          shouldDrawHeightIndicators={false}
+          shouldDrawTemperatureIndicators={false}
           shouldDrawIcons={false}
           shouldDrawCells={false}
         />

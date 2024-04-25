@@ -3,9 +3,11 @@ import { BLEND_MODES, Graphics as GraphicsType, Texture } from 'pixi.js';
 import { Container, Graphics, Sprite, useApp } from '@pixi/react';
 import * as d3Scale from 'd3-scale';
 import * as d3ScaleChromatic from 'd3-scale-chromatic';
+import { GlowFilter } from '@pixi/filter-glow';
+import { DropShadowFilter } from '@pixi/filter-drop-shadow';
 
 import { LakeFeature, PackedGrid } from '../types/grid.ts';
-import { biomeColor, BiomeIndexes } from '../data/biomes.ts';
+import { biomeColor, BiomeIndexes, biomeTextures } from '../data/biomes.ts';
 import oceanPattern from '../assets/ocean_pattern1.png';
 import { LakeColors } from '../data/features.ts';
 import {
@@ -30,6 +32,8 @@ interface LandmassesProps {
   shouldDrawCells?: boolean;
   shouldDrawBiomes?: boolean;
   shouldDrawHeightmap?: boolean;
+  shouldDrawHeightIndicators?: boolean;
+  shouldDrawTemperatureIndicators?: boolean;
   shouldDrawLakes?: boolean;
   shouldDrawRivers?: boolean;
   shouldDrawIcons?: boolean;
@@ -42,6 +46,8 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
   shouldDrawCells = false,
   shouldDrawBiomes = false,
   shouldDrawHeightmap = false,
+  shouldDrawHeightIndicators = false,
+  shouldDrawTemperatureIndicators = false,
   shouldDrawLakes = false,
   shouldDrawRivers = false,
   shouldDrawIcons = false,
@@ -89,7 +95,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
       g.clear();
 
       physicalMap.cells.pathPoints.coastlines.forEach(path => {
-        g.lineStyle(2, coastlineColor, 1, 0.5);
+        g.lineStyle(1, coastlineColor, 1, 0.5);
 
         drawD3ClosedCurve(g, path);
 
@@ -142,10 +148,17 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
         }
 
         paths.forEach(path => {
-          g.beginFill(biomeColor[biomeIndex]);
+          if (biomeTextures[biomeIndex]) {
+            g.beginTextureFill({ texture: biomeTextures[biomeIndex]! });
+            drawD3ClosedCurve(g, path);
+            g.endFill();
+          }
 
+          g.beginFill(
+            biomeColor[biomeIndex],
+            biomeTextures[biomeIndex] ? 0.85 : 1
+          );
           drawD3ClosedCurve(g, path);
-
           g.endFill();
         });
       });
@@ -174,7 +187,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
       });
 
       Object.entries(physicalMap.heightmapGroups).forEach(([key, paths]) => {
-        const heightLevel: BiomeIndexes = parseInt(key);
+        const heightLevel = parseInt(key);
         if (!paths.length) {
           return;
         }
@@ -189,6 +202,82 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
 
           g.endFill();
         });
+      });
+    },
+    [physicalMap]
+  );
+
+  const drawHeightIndicators = useCallback(
+    (g: GraphicsType) => {
+      g.clear();
+
+      const colorScheme = d3Scale.scaleSequential(
+        d3ScaleChromatic.interpolateSpectral
+      );
+
+      physicalMap.cells.indexes.forEach(cellIndex => {
+        if (physicalMap.cells.biomes[cellIndex] === BiomeIndexes.MARINE) {
+          return;
+        }
+
+        const heightLevel = physicalMap.cells.heights[cellIndex];
+        const coordinates = physicalMap.cells.points[cellIndex];
+
+        const color = colorScheme(
+          1 - (heightLevel < 20 ? heightLevel - 5 : heightLevel) / 100
+        );
+
+        g.beginFill(color);
+        g.drawRect(
+          coordinates[0],
+          coordinates[1] - heightLevel / 10,
+          2,
+          heightLevel / 10
+        );
+        g.endFill();
+      });
+    },
+    [physicalMap]
+  );
+
+  const drawTemperatureIndicators = useCallback(
+    (g: GraphicsType) => {
+      g.clear();
+
+      const colorScheme = d3Scale.scaleSequential(
+        d3ScaleChromatic.interpolateSpectral
+      );
+
+      const minTemp = Math.min(...physicalMap.cells.temperatures);
+      let maxTemp = Math.max(...physicalMap.cells.temperatures);
+      let toZero = 0;
+      if (minTemp > 0) {
+        toZero = -minTemp;
+        maxTemp += toZero;
+      } else {
+        toZero = Math.abs(minTemp);
+        maxTemp += toZero;
+      }
+
+      physicalMap.cells.indexes.forEach(cellIndex => {
+        if (physicalMap.cells.biomes[cellIndex] === BiomeIndexes.MARINE) {
+          return;
+        }
+
+        const temperature = physicalMap.cells.temperatures[cellIndex];
+        const coordinates = physicalMap.cells.points[cellIndex];
+
+        const color = colorScheme(1 - (temperature + toZero) / maxTemp);
+        const rectangleHeight = (temperature + toZero) / maxTemp;
+
+        g.beginFill(color);
+        g.drawRect(
+          coordinates[0] - 2,
+          coordinates[1] - rectangleHeight * 10,
+          2,
+          rectangleHeight * 10
+        );
+        g.endFill();
       });
     },
     [physicalMap]
@@ -254,7 +343,7 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
             const firstCellBiome =
               physicalMap.cells.biomes[islandFeature.firstCell];
 
-            islandColor = biomeColor[firstCellBiome];
+            islandColor = biomeColor[firstCellBiome as BiomeIndexes];
           } else if (shouldDrawHeightmap) {
             const firstCellHeight =
               physicalMap.cells.heights[islandFeature.firstCell];
@@ -288,7 +377,6 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
   return (
     <Container>
       <Graphics draw={drawOcean} />
-      <Graphics draw={drawCoastline} />
       {shouldDrawBiomes && <Graphics draw={drawBiomes} />}
       {shouldDrawHeightmap && <Graphics draw={drawHeightmap} />}
       {shouldDrawRivers && <Graphics draw={drawRivers} />}
@@ -298,6 +386,21 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
           <Graphics draw={drawLakes} />
         </>
       )}
+      <Graphics
+        draw={drawCoastline}
+        filters={[
+          /* new GlowFilter({
+            outerStrength: 15,
+            innerStrength: 0,
+            distance: 30,
+            color: 0xc0af7a,
+            alpha: 0.3,
+          }), */
+          new DropShadowFilter({
+            color: 0xc0af7a,
+          }),
+        ]}
+      />
       {shouldDrawCells && <Graphics draw={drawCells} />}
       {shouldDrawIcons &&
         physicalMap.biomeIcons?.map(({ image, x, y, size }, index) => (
@@ -310,6 +413,10 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
             y={y}
           />
         ))}
+      {shouldDrawHeightIndicators && <Graphics draw={drawHeightIndicators} />}
+      {shouldDrawTemperatureIndicators && (
+        <Graphics draw={drawTemperatureIndicators} />
+      )}
     </Container>
   );
 };

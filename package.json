@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@pixi/events": "^7.3.2",
+    "@pixi/filter-drop-shadow": "^5.2.0",
     "@pixi/filter-glow": "^5.2.1",
     "@pixi/filter-outline": "^5.2.0",
     "@pixi/graphics-extras": "^7.3.2",
