@@ -388,18 +388,20 @@ export const Landmasses: FunctionComponent<LandmassesProps> = ({
       )}
       <Graphics
         draw={drawCoastline}
-        filters={[
-          /* new GlowFilter({
+        filters={
+          [
+            /* new GlowFilter({
             outerStrength: 15,
             innerStrength: 0,
             distance: 30,
             color: 0xc0af7a,
             alpha: 0.3,
           }), */
-          new DropShadowFilter({
+            /* new DropShadowFilter({
             color: 0xc0af7a,
-          }),
-        ]}
+          }), */
+          ]
+        }
       />
       {shouldDrawCells && <Graphics draw={drawCells} />}
       {shouldDrawIcons &&

@@ -1,6 +1,6 @@
 import { FunctionComponent, useCallback, useMemo } from 'react';
 import { Graphics as GraphicsType, Point, Text } from 'pixi.js';
-import { Container, Graphics, SimpleRope, useApp } from '@pixi/react';
+import { Container, Graphics, SimpleRope, Sprite, useApp } from '@pixi/react';
 
 import { drawD3ClosedCurve } from '../pixiUtils/draw.ts';
 import { AreaMap } from '../types/areas.ts';
@@ -28,6 +28,79 @@ export const Areas: FunctionComponent<AreasProps> = ({
   shouldDrawRegionLabels = false,
 }) => {
   const app = useApp();
+
+  const regionTextures = useMemo(
+    () =>
+      shouldDrawRegions
+        ? areaMap.regions.map(region => {
+            const g = new GraphicsType();
+            const regionColor = randomDistinguishableColor(region.index);
+
+            if (debug && region.index !== debug) {
+              return null;
+            }
+            if (debug) {
+              console.log(region.border);
+            }
+
+            const double = (x: number) => x + x + x + x;
+
+            g.lineStyle(1, 0x000000, 0.0000001);
+            g.drawRect(
+              0,
+              0,
+              double(app.screen.width),
+              double(app.screen.height)
+            );
+
+            g.lineStyle(1, regionColor, 1);
+            g.beginFill(regionColor, 0.2);
+            drawD3ClosedCurve(
+              g,
+              region.border.map(p => [double(p[0]), double(p[1])])
+            );
+
+            region.borderHoles.forEach(hole => {
+              g.beginHole();
+              g.lineStyle(1, 0xff0000, 1);
+              drawD3ClosedCurve(
+                g,
+                hole.map(p => [double(p[0]), double(p[1])])
+              );
+              g.endHole();
+            });
+
+            g.endFill();
+
+            if (!debugRegions) {
+              return app.renderer.generateTexture(g);
+            }
+
+            g.lineStyle(1, regionColor, 1);
+            region.areas.forEach(area => {
+              area.cells.forEach(c => {
+                g.drawCircle(
+                  double(physicalMap.cells.points[c][0]),
+                  double(physicalMap.cells.points[c][1]),
+                  1
+                );
+
+                const text = new Text(region.index, {
+                  fontSize: double(7),
+                  fill: 0x000000,
+                });
+                text.x = double(physicalMap.cells.points[c][0] - 7);
+                text.y = double(physicalMap.cells.points[c][1] - 7);
+
+                g.addChild(text);
+              });
+            });
+
+            return app.renderer.generateTexture(g);
+          })
+        : [],
+    [areaMap, physicalMap, app, shouldDrawRegions]
+  );
 
   // TODO: Extract all this logic when the drawing is finalized
   const drawAreas = useCallback(
@@ -77,61 +150,6 @@ export const Areas: FunctionComponent<AreasProps> = ({
     [areaMap, physicalMap, app]
   );
 
-  const drawRegions = useCallback(
-    (g: GraphicsType) => {
-      g.clear();
-
-      areaMap.regions.forEach(region => {
-        const regionColor = randomDistinguishableColor(region.index);
-
-        if (debug && region.index !== debug) {
-          return;
-        }
-        if (debug) {
-          console.log(region.border);
-        }
-
-        g.lineStyle(1, regionColor, 1);
-        g.beginFill(regionColor, 0.2);
-        drawD3ClosedCurve(g, region.border);
-
-        region.borderHoles.forEach(hole => {
-          g.beginHole();
-          g.lineStyle(1, 0xff0000, 1);
-          drawD3ClosedCurve(g, hole);
-          g.endHole();
-        });
-
-        g.endFill();
-
-        if (!debugRegions) {
-          return;
-        }
-
-        g.lineStyle(1, regionColor, 1);
-        region.areas.forEach(area => {
-          area.cells.forEach(c => {
-            g.drawCircle(
-              physicalMap.cells.points[c][0],
-              physicalMap.cells.points[c][1],
-              1
-            );
-
-            const text = new Text(region.index, {
-              fontSize: 7,
-              fill: 0x000000,
-            });
-            text.x = physicalMap.cells.points[c][0] - 7;
-            text.y = physicalMap.cells.points[c][1] - 7;
-
-            g.addChild(text);
-          });
-        });
-      });
-    },
-    [areaMap, physicalMap, app]
-  );
-
   const regionLabels = useMemo(() => {
     if (!shouldDrawRegionLabels) {
       return [];
@@ -165,7 +183,20 @@ export const Areas: FunctionComponent<AreasProps> = ({
   return (
     <Container>
       {shouldDrawArea && <Graphics draw={drawAreas} />}
-      {shouldDrawRegions && <Graphics draw={drawRegions} />}
+      {shouldDrawRegions &&
+        regionTextures.map(
+          (texture, index) =>
+            texture && (
+              <Sprite
+                key={index}
+                texture={texture}
+                x={0}
+                y={0}
+                width={app.screen.width}
+                height={app.screen.height}
+              />
+            )
+        )}
       {regionLabels.map((labelTexture, index) => {
         if (!labelTexture) {
           return null;
