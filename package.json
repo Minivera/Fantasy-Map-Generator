@@ -33,6 +33,7 @@
     "@types/lineclip": "^1.1.1",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
+    "@types/three": "^0.164.0",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
     "@vitejs/plugin-react": "^4.2.1",
@@ -49,12 +50,8 @@
     "vite": "^4.5.1"
   },
   "dependencies": {
-    "@pixi/events": "^7.3.2",
-    "@pixi/filter-drop-shadow": "^5.2.0",
-    "@pixi/filter-glow": "^5.2.1",
-    "@pixi/filter-outline": "^5.2.0",
-    "@pixi/graphics-extras": "^7.3.2",
-    "@pixi/react": "^7.1.1",
+    "@react-three/drei": "^9.105.5",
+    "@react-three/fiber": "^8.16.2",
     "alea": "^1.0.1",
     "bezier-js": "^6.1.4",
     "d3-array": "^3.2.4",
@@ -67,9 +64,8 @@
     "d3-shape": "^3.2.0",
     "delaunator": "^5.0.0",
     "lineclip": "^1.1.5",
-    "pixi-viewport": "^5.0.2",
-    "pixi.js": "^7.3.2",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "three": "^0.164.1"
   }
 }

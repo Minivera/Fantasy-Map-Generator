@@ -1,12 +1,16 @@
 import { FunctionComponent } from 'react';
-import { Stage } from '@pixi/react';
+import * as THREE from 'three';
+import { Canvas } from '@react-three/fiber';
 
 import { PackedGrid } from '../types/grid.ts';
 import { AreaMap } from '../types/areas.ts';
-
-import { ViewportContainer } from './ViewportContainer.tsx';
+import {
+  MapControls,
+  OrthographicCamera,
+  PerspectiveCamera,
+} from '@react-three/drei';
 import { Landmasses } from './Landmasses.tsx';
-import { Areas } from './Areas.tsx';
+import { Controls } from './Controls.tsx';
 
 interface MapProps {
   physicalMap: PackedGrid | null;
@@ -26,35 +30,29 @@ export const Map: FunctionComponent<MapProps> = ({
   }
 
   return (
-    <Stage
-      width={graphWidth}
-      height={graphHeight}
-      options={{
-        antialias: true,
-        background: 0x466eab,
-        backgroundAlpha: 0.75,
+    <Canvas
+      gl={canvas => {
+        const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+        renderer.setSize(graphWidth, graphHeight);
+
+        return renderer;
       }}
     >
-      <ViewportContainer>
-        <Landmasses
-          physicalMap={physicalMap}
-          shouldDrawLakes={true}
-          shouldDrawRivers={true}
-          shouldDrawBiomes={true}
-          shouldDrawHeightmap={false}
-          shouldDrawHeightIndicators={false}
-          shouldDrawTemperatureIndicators={false}
-          shouldDrawIcons={false}
-          shouldDrawCells={false}
-        />
-        <Areas
-          areaMap={areaMap}
-          physicalMap={physicalMap}
-          shouldDrawArea={false}
-          shouldDrawRegions={true}
-          shouldDrawRegionLabels={false}
-        />
-      </ViewportContainer>
-    </Stage>
+      <PerspectiveCamera
+        makeDefault
+        near={10}
+        far={1000}
+        aspect={graphWidth / graphHeight}
+        position={[0, 0, 800]}
+        up={[0, 0, 0]}
+      />
+      <Controls graphWidth={graphWidth} graphHeight={graphHeight} />
+      <color attach="background" args={[243, 243, 243]} />
+      <group position={[-(graphWidth / 2), -(graphHeight / 2), 20]}>
+        <Landmasses physicalMap={physicalMap} shouldDrawCells />
+      </group>
+      <ambientLight args={[0x000000]} intensity={0.1} />
+      <directionalLight position={[0, 0, 500]} intensity={0.5} />
+    </Canvas>
   );
 };

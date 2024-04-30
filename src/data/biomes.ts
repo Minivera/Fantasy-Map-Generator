@@ -1,12 +1,3 @@
-import { Texture } from 'pixi.js';
-
-import dirtPattern from '../assets/dirt_pattern.png';
-import grassPattern from '../assets/grass_pattern.png';
-import icePattern from '../assets/ice_pattern.png';
-import leavesPattern from '../assets/leaves_pattern.png';
-import sandPattern from '../assets/sand_pattern.png';
-import stonePattern from '../assets/stone_pattern.png';
-
 export enum BiomeIndexes {
   MARINE,
   HOT_DESERT,
@@ -53,29 +44,6 @@ export const biomeColor: Record<BiomeIndexes, string> = {
   [BiomeIndexes.TUNDRA]: '#d5e7eb',
   [BiomeIndexes.GLACIER]: '#eef5f7',
   [BiomeIndexes.WETLAND]: '#0b9131',
-};
-
-const dirtTexture = Texture.from(dirtPattern);
-const grassTexture = Texture.from(grassPattern);
-const iceTexture = Texture.from(icePattern);
-const leaveTexture = Texture.from(leavesPattern);
-const sandTexture = Texture.from(sandPattern);
-const stoneTexture = Texture.from(stonePattern);
-
-export const biomeTextures: Record<BiomeIndexes, Texture | null> = {
-  [BiomeIndexes.MARINE]: null,
-  [BiomeIndexes.HOT_DESERT]: sandTexture,
-  [BiomeIndexes.COLD_DESERT]: sandTexture,
-  [BiomeIndexes.SAVANNA]: grassTexture,
-  [BiomeIndexes.GRASSLAND]: grassTexture,
-  [BiomeIndexes.TROPICAL_SEASONAL_FOREST]: leaveTexture,
-  [BiomeIndexes.TEMPERATE_DECIDUOUS_FOREST]: grassTexture,
-  [BiomeIndexes.TROPICAL_RAINFOREST]: leaveTexture,
-  [BiomeIndexes.TEMPERATE_RAINFOREST]: leaveTexture,
-  [BiomeIndexes.TAIGA]: dirtTexture,
-  [BiomeIndexes.TUNDRA]: stoneTexture,
-  [BiomeIndexes.GLACIER]: iceTexture,
-  [BiomeIndexes.WETLAND]: dirtTexture,
 };
 
 export const biomeHabitability = [
