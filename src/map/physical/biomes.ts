@@ -1,10 +1,11 @@
 import * as d3 from 'd3-array';
 
-import { PackedGrid, Point } from '../../types/grid.ts';
+import { GroupDefs, PackedGrid } from '../../types/grid.ts';
 import { roundNumber } from '../../utils/math.ts';
 import { isLandFilter } from '../../utils/graph.ts';
 import { BiomeIndexes, biomesMartix } from '../../data/biomes.ts';
 import { clipPoly } from '../../utils/polygons.ts';
+import { calculateCenterLine } from '../../utils/centerlines.ts';
 
 /**
  * Calculates the general moisture level of a cell by checking how close it is to a wated feature and it's
@@ -100,7 +101,7 @@ export const groupBiomes = (
   const used = new Uint8Array(n);
   // Biome paths are stored under their biome index. Since a single biome can have multiple paths,
   // we store the paths as arrays of points.
-  const paths: Record<BiomeIndexes, Point[][]> = {
+  const paths: Record<BiomeIndexes, GroupDefs[]> = {
     [BiomeIndexes.MARINE]: [],
     [BiomeIndexes.HOT_DESERT]: [],
     [BiomeIndexes.COLD_DESERT]: [],
@@ -198,7 +199,10 @@ export const groupBiomes = (
       graphHeight
     );
 
-    paths[biome].push(points);
+    paths[biome].push({
+      points,
+      centerline: calculateCenterLine(points),
+    });
   }
 
   grid.biomeGroups = paths;

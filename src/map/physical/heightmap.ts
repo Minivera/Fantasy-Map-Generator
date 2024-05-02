@@ -23,9 +23,10 @@ import {
   HeightmapTroughTool,
 } from '../../data/heightmapTemplates.ts';
 import { Range } from '../../types/probability.ts';
-import { Grid, PackedGrid, Point } from '../../types/grid.ts';
+import { Grid, GroupDefs, PackedGrid } from '../../types/grid.ts';
 
 import { findGridCell } from './grid.ts';
+import { calculateCenterLine } from '../../utils/centerlines.ts';
 
 const getPointInRange = (
   randomizer: ReturnType<typeof Alea>,
@@ -735,7 +736,7 @@ export const groupHeightmap = (grid: PackedGrid) => {
   const { cells, vertices } = grid;
   const n = cells.indexes.length;
   const used = new Uint8Array(n);
-  const paths: Record<number, Point[][]> = {};
+  const paths: Record<number, GroupDefs[]> = {};
 
   const skip = 6;
 
@@ -820,7 +821,17 @@ export const groupHeightmap = (grid: PackedGrid) => {
     }
 
     const points = chain.map(v => vertices.coordinates[v]);
-    paths[h] = Array.isArray(paths[h]) ? paths[h].concat(points) : [points];
+    paths[h] = Array.isArray(paths[h])
+      ? paths[h].concat({
+          points,
+          centerline: calculateCenterLine(points),
+        })
+      : [
+          {
+            points,
+            centerline: calculateCenterLine(points),
+          },
+        ];
   }
 
   grid.heightmapGroups = paths;

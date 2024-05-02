@@ -399,6 +399,17 @@ export interface Grid {
 }
 
 /**
+ * Object that contains the definition of a group as an array of points to draw the group's polygon, an
+ * optional array of points that represent the group's label line, and an array of points that represents the
+ * group's centerline.
+ */
+export interface GroupDefs {
+  points: Point[];
+  centerline: Point[];
+  labelLine?: Point[];
+}
+
+/**
  * The final definition for a grid, once all the calculations have been done. This grid has had multiple runs of the
  * Voronoi algorithm run on it and should be final.
  */
@@ -409,8 +420,8 @@ export interface PackedGrid extends Grid {
   cells: PackedCells;
   features: PackedFeature[];
   ruler?: [Point, Point];
-  biomeGroups?: Record<BiomeIndexes, Point[][]>;
-  heightmapGroups?: Record<number, Point[][]>;
+  biomeGroups?: Record<BiomeIndexes, GroupDefs[]>;
+  heightmapGroups?: Record<number, GroupDefs[]>;
   biomeIcons?: {
     image: string;
     x: number;
