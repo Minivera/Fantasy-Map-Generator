@@ -55,7 +55,6 @@
     "@pixi/filter-drop-shadow": "^5.2.0",
     "@pixi/filter-glow": "^5.2.1",
     "@pixi/filter-outline": "^5.2.0",
-    "@turf/turf": "^7.0.0-alpha.115",
     "alea": "^1.0.1",
     "bezier-js": "^6.1.4",
     "d3-array": "^3.2.4",

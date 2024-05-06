@@ -2,12 +2,11 @@ import * as d3 from 'd3-array';
 import * as d3Voronoi from 'd3-voronoi';
 import * as d3Polygon from 'd3-polygon';
 import simplifyJS from 'simplify-js';
-
-import * as turf from '@turf/turf';
-import { aStar } from 'ngraph.path';
+import { aGreedy } from 'ngraph.path';
 import createGraph from 'ngraph.graph';
 
 import { Point } from '../types/grid.ts';
+import * as d3Array from 'd3-array';
 
 type toDeepMapType = {
   (source: Record<string, number>): Map<string, number>;
@@ -632,20 +631,94 @@ export const calculateCenterLineCostly = (polygon: Point[]): Point[] => {
 };
 
 export const calculateCenterLine = (polygon: Point[]): Point[] => {
-  const multiPolygon = turf.polygon([polygon]);
-  const voronoiPolygons = turf.voronoi(turf.polygonToLine(multiPolygon));
+  const evenlySpacedPoints = getPointsAlongPolyline(
+    polygon,
+    numPerimeterPoints
+  );
+
+  const [x0, x1] = d3.extent(evenlySpacedPoints.map(d => d[0])) as [
+    number,
+    number,
+  ];
+  const [y0, y1] = d3.extent(evenlySpacedPoints.map(d => d[1])) as [
+    number,
+    number,
+  ];
+
+  const voronoiPolygons = d3Voronoi.voronoi().extent([
+    [x0 - 1, y0 - 1],
+    [x1 + 1, y1 + 1],
+  ])(evenlySpacedPoints).edges;
   const graph = createGraph();
 
-  voronoiPolygons.forEach(node => {
-    graph.addNode(node.id, { x: node[0], y: node[1] });
-  });
+  const uniqueNodes: { id: number; point: Point }[] = [];
+  voronoiPolygons.forEach(edge => {
+    graph.addNode(edge.left.index, {
+      x: edge.left.data[0],
+      y: edge.left.data[1],
+    });
+    uniqueNodes.push({ id: edge.left.index, point: edge.left.data });
 
-  uniqueEdges.forEach(([fromNode, toNode]) => {
+    if (edge.right) {
+      graph.addNode(edge.right.index, {
+        x: edge.right.data[0],
+        y: edge.right.data[1],
+      });
+      uniqueNodes.push({ id: edge.right.index, point: edge.right.data });
+    }
+  });
+  voronoiPolygons.forEach(edge => {
+    if (!edge.right) {
+      return;
+    }
+
+    const [fromNode, toNode] = edge;
     const dx = fromNode[0] - toNode[0];
     const dy = fromNode[1] - toNode[1];
 
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    graph.addLink(fromNode.id, toNode.id, { distance });
+    graph.addLink(edge.left.index, edge.right.index, { distance });
   });
+
+  const pathfinderAGreedy = aGreedy(graph, {
+    distance(fromNode, toNode) {
+      // In this case we have coordinates. Lets use them as
+      // distance between two nodes:
+      const dx = fromNode.data.x - toNode.data.x;
+      const dy = fromNode.data.y - toNode.data.y;
+
+      return Math.sqrt(dx * dx + dy * dy);
+    },
+    heuristic(fromNode, toNode) {
+      return Math.hypot(
+        fromNode.data.x - toNode.data.x,
+        fromNode.data.y - toNode.data.y
+      );
+    },
+  });
+
+  const fromNodeIndex =
+    uniqueNodes[
+      d3Array.leastIndex(
+        uniqueNodes,
+        (a, b) => a.point[0] - b.point[0]
+      ) as number
+    ].id;
+  const toNodeIndex =
+    uniqueNodes[
+      d3Array.leastIndex(
+        uniqueNodes,
+        (a, b) => b.point[0] - a.point[0]
+      ) as number
+    ].id;
+
+  const mostDistantNodesPath = pathfinderAGreedy.find(
+    fromNodeIndex,
+    toNodeIndex
+  );
+
+  return simplifyPath(
+    mostDistantNodesPath.map<Point>(node => [node.data.x, node.data.y])
+  );
 };
