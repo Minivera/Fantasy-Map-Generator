@@ -160,7 +160,7 @@ export const generate = (
   grid.cells.heights = generateHeightmap(
     randomizer,
     grid,
-    heightmapTemplate,
+    heightmapTemplates.archipelago,
     options
   );
 

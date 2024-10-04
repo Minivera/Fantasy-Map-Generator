@@ -116,7 +116,7 @@ const addHill = (
           continue;
         }
 
-        change[c] = change[q] ** blobPower * (Math.random() * 0.2 + 0.9);
+        change[c] = change[q] ** blobPower * (randomizer() * 0.2 + 0.9);
         if (change[c] > 1) {
           queue.push(c);
         }
@@ -525,23 +525,31 @@ const modify = (
 
   const isLand = min === 20;
 
-  return heights.map(h => {
+  const newHeights = heights.map(h => {
     if (h < min || h > max) {
       return h;
     }
 
-    if ((step as HeightmapAddTool).add) {
+    if (
+      typeof (step as HeightmapAddTool).add !== 'undefined' &&
+      (step as HeightmapAddTool).add
+    ) {
       h = isLand
         ? Math.max(h + (step as HeightmapAddTool).add, 20)
         : h + (step as HeightmapAddTool).add;
     }
-    if ((step as HeightmapMultiplyTool).multiplier !== 1) {
+    if (
+      typeof (step as HeightmapMultiplyTool).multiplier !== 'undefined' &&
+      (step as HeightmapMultiplyTool).multiplier !== 1
+    ) {
       h = isLand
         ? (h - 20) * (step as HeightmapMultiplyTool).multiplier + 20
         : h * (step as HeightmapMultiplyTool).multiplier;
     }
     return limitTo100(h);
   });
+
+  return newHeights;
 };
 
 const smooth = (
@@ -634,6 +642,7 @@ const fromTemplate = (
   const linePower = getLinePower(options.cellsToGenerate);
 
   return template.steps.reduce((heights, step) => {
+    console.log(heights);
     switch (step.tool) {
       case HeightmapToolType.HILL:
         return addHill(

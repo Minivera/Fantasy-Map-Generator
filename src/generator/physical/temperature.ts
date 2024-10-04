@@ -1,19 +1,13 @@
+import Alea from 'alea';
 import * as d3Ease from 'd3-ease';
 import * as d3Array from 'd3-array';
 
-import { Cells, Grid } from '../../types/grid.ts';
+import { Grid } from '../../types/grid.ts';
 import { clamp, roundNumber } from '../../utils/math.ts';
 import { randomRange } from '../../utils/probability.ts';
-import Alea from 'alea';
-
-export interface Coordinates {
-  latitudeT: number;
-  latitudeN: number;
-  latitudeS: number;
-  longitudeT: number;
-  longitudeW: number;
-  longitudeE: number;
-}
+import { Coordinates } from '../../types/map.ts';
+import { FeaturesMap } from '../../types/featuresMap.ts';
+import { Heightmap } from '../../types/heightmap.ts';
 
 const MAX_PASSABLE_ELEVATION = 85;
 
@@ -43,78 +37,83 @@ export const getWindDirections = (
 };
 
 const getPrecipitation = (
-  cells: Cells,
+  heightmap: Heightmap,
   modifier: number,
   humidity: number,
   i: number,
   n: number
 ) => {
+  const { heights } = heightmap;
+
   // precipitation in normal conditions
   const normalLoss = Math.max(humidity / (10 * modifier), 1);
   // difference in height
-  const diff = Math.max(cells.heights[i + n] - cells.heights[i], 0);
+  const diff = Math.max(heights[i + n].height - heights[i].height, 0);
   // 50 stands for hills, 70 for mountains
-  const mod = (cells.heights[i + n] / 70) ** 2;
-  return clamp(normalLoss + diff * mod, 1, humidity);
+  const mod = (heights[i + n].height / 70) ** 2;
+  return Math.floor(clamp(normalLoss + diff * mod, 1, humidity));
 };
 
 const passWind = (
   randomizer: ReturnType<typeof Alea>,
-  cells: Cells,
+  featuresMap: FeaturesMap,
+  heightmap: Heightmap,
   modifier: number,
   source: ([number, number, number] | number)[],
   maxPrec: number,
   next: number,
   steps: number
 ) => {
+  const { features } = featuresMap;
+  const { heights } = heightmap;
+
   const maxPrecInit = maxPrec;
 
   for (const first of source) {
-    let firstIndex: number;
-    if (Array.isArray(first) && first[0]) {
+    let firstIndex: number = 0;
+    if (Array.isArray(first) && typeof first[0] !== 'undefined') {
       maxPrec = Math.min(maxPrecInit * first[1], 255);
       firstIndex = first[0];
-    } else {
-      firstIndex = first as number;
+    } else if (typeof first === 'number') {
+      firstIndex = first;
     }
 
     // initial water amount
-    let humidity = maxPrec - cells.heights[firstIndex];
+    let humidity = maxPrec - heights[firstIndex].height;
     // if first cell in row is too elevated consider wind dry
     if (humidity <= 0) {
       continue;
     }
 
-    for (let s = 0, current = firstIndex; s < steps; s++, current += next) {
+    for (let s = 0, current = firstIndex; s < steps - 1; s++, current += next) {
       // no flux in permafrost
-      if (cells.temperatures[current] < -5) {
+      if (features[current].temperature < -5) {
         continue;
       }
 
-      if (cells.heights[current] < 20) {
+      if (heights[current].height < 20) {
         // water cell
-        if (cells.heights[current + next] >= 20) {
+        if (heights[current + next].height >= 20) {
           // coastal precipitation
-          cells.precipitation[current + next] += Math.max(
-            humidity / randomRange(randomizer, 10, 20),
-            1
+          features[current + next].precipitation += Math.floor(
+            Math.max(humidity / randomRange(randomizer, 10, 20), 1)
           );
         } else {
           // wind gets more humidity passing water cell
           humidity = Math.min(humidity + 5 * modifier, maxPrec);
           // water cells precipitation (need to correctly pour water through lakes)
-          cells.precipitation[current] += 5 * modifier;
+          features[current].precipitation += Math.floor(5 * modifier);
         }
         continue;
       }
 
       // land cell
       const isPassable =
-        cells.heights[current + next] <= MAX_PASSABLE_ELEVATION;
+        heights[current + next].height <= MAX_PASSABLE_ELEVATION;
       const precipitation = isPassable
-        ? getPrecipitation(cells, modifier, humidity, current, next)
+        ? getPrecipitation(heightmap, modifier, humidity, current, next)
         : humidity;
-      cells.precipitation[current] += precipitation;
+      features[current].precipitation += precipitation;
       const evaporation = precipitation > 1.5 ? 1 : 0; // some humidity evaporates back to the atmosphere
       humidity = isPassable
         ? clamp(humidity - precipitation + evaporation, 0, maxPrec)
@@ -125,6 +124,8 @@ const passWind = (
 
 const calculateTemperatures = (
   grid: Grid,
+  featuresMap: FeaturesMap,
+  heightMap: Heightmap,
   mapCoordinates: Coordinates,
   {
     graphHeight,
@@ -139,23 +140,23 @@ const calculateTemperatures = (
     heightExponent: number;
   }
 ) => {
-  const cells = grid.cells;
-  // temperature array
-  cells.temperatures = new Int8Array(cells.indexes.length);
+  const { cells } = grid;
+  const { features } = featuresMap;
+  const { heights } = heightMap;
 
   const tDelta = temperatureEquator - temperaturePole;
   // interpolation function
   const int = d3Ease.easePolyInOut.exponent(0.5);
 
-  d3Array.range(0, cells.indexes.length, grid.cellsX).forEach(r => {
+  d3Array.range(0, cells.length, grid.cellsX).forEach(r => {
     const y = grid.points[r][1];
     const lat = Math.abs(
       mapCoordinates.latitudeN - (y / graphHeight) * mapCoordinates.latitudeT
     ); // [0; 90]
     const initTemp = temperatureEquator - int(lat / 90) * tDelta;
     for (let i = r; i < r + grid.cellsX; i++) {
-      cells.temperatures[i] = clamp(
-        initTemp - convertForHeight(cells.heights[i], heightExponent),
+      features[i].temperature = clamp(
+        initTemp - convertForHeight(heights[i].height, heightExponent),
         -128,
         127
       );
@@ -170,6 +171,8 @@ const calculateTemperatures = (
 const generatePrecipitation = (
   randomizer: ReturnType<typeof Alea>,
   grid: Grid,
+  featuresMap: FeaturesMap,
+  heightmap: Heightmap,
   mapCoordinates: Coordinates,
   {
     cellsToGenerate,
@@ -182,8 +185,6 @@ const generatePrecipitation = (
   }
 ) => {
   const { cells, cellsX, cellsY } = grid;
-  // precipitation array
-  cells.precipitation = new Uint8Array(cells.indexes.length);
 
   const cellsNumberModifier = (cellsToGenerate / 10000) ** 0.25;
   const precInputModifier = precipitationModifier / 100;
@@ -208,7 +209,7 @@ const generatePrecipitation = (
   ];
 
   // define wind directions based on cells latitude and prevailing winds there
-  d3Array.range(0, cells.indexes.length, cellsX).forEach((c, i) => {
+  d3Array.range(0, cells.length, cellsX).forEach((c, i) => {
     const lat =
       mapCoordinates.latitudeN - (i / cellsY) * mapCoordinates.latitudeT;
     const latBand = ((Math.abs(lat) - 1) / 5) | 0;
@@ -235,10 +236,28 @@ const generatePrecipitation = (
 
   // distribute winds by direction
   if (westerly.length) {
-    passWind(randomizer, cells, modifier, westerly, 120 * modifier, 1, cellsX);
+    passWind(
+      randomizer,
+      featuresMap,
+      heightmap,
+      modifier,
+      westerly,
+      120 * modifier,
+      1,
+      cellsX
+    );
   }
   if (easterly.length) {
-    passWind(randomizer, cells, modifier, easterly, 120 * modifier, -1, cellsX);
+    passWind(
+      randomizer,
+      featuresMap,
+      heightmap,
+      modifier,
+      easterly,
+      120 * modifier,
+      -1,
+      cellsX
+    );
   }
 
   const vertT = southerly + northerly;
@@ -251,7 +270,8 @@ const generatePrecipitation = (
     const maxPrecN = (northerly / vertT) * 60 * modifier * latModN;
     passWind(
       randomizer,
-      cells,
+      featuresMap,
+      heightmap,
       modifier,
       d3Array.range(0, cellsX, 1),
       maxPrecN,
@@ -269,9 +289,10 @@ const generatePrecipitation = (
     const maxPrecS = (southerly / vertT) * 60 * modifier * latModS;
     passWind(
       randomizer,
-      cells,
+      featuresMap,
+      heightmap,
       modifier,
-      d3Array.range(cells.indexes.length - cellsX, cells.indexes.length, 1),
+      d3Array.range(cells.length - cellsX, cells.length, 1),
       maxPrecS,
       -cellsX,
       cellsY
@@ -287,6 +308,8 @@ const generatePrecipitation = (
 export const generateClimate = (
   randomizer: ReturnType<typeof Alea>,
   grid: Grid,
+  featuresMap: FeaturesMap,
+  heightMap: Heightmap,
   mapCoordinates: Coordinates,
   options: {
     graphWidth: number;
@@ -299,6 +322,13 @@ export const generateClimate = (
     winds?: [number, number, number, number, number, number];
   }
 ) => {
-  calculateTemperatures(grid, mapCoordinates, options);
-  generatePrecipitation(randomizer, grid, mapCoordinates, options);
+  calculateTemperatures(grid, featuresMap, heightMap, mapCoordinates, options);
+  generatePrecipitation(
+    randomizer,
+    grid,
+    featuresMap,
+    heightMap,
+    mapCoordinates,
+    options
+  );
 };

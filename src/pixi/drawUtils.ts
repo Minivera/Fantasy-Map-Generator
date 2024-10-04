@@ -1,7 +1,22 @@
 import { Graphics as GraphicsType } from 'pixi.js';
 import * as d3Shape from 'd3-shape';
 
-import { Point } from '../types/grid.ts';
+import { Point, Vertex } from '../types/grid.ts';
+
+export const drawVertexPath = (
+  g: GraphicsType,
+  vertices: Vertex[],
+  path: number[]
+) => {
+  const [start, ...rest] = path;
+  g.moveTo(vertices[start].coordinates[0], vertices[start].coordinates[1]);
+
+  rest.forEach(vertex => {
+    g.lineTo(vertices[vertex].coordinates[0], vertices[vertex].coordinates[1]);
+  });
+
+  g.closePath();
+};
 
 export const drawD3OpenCurve = (g: GraphicsType, points: Point[]) => {
   d3Shape

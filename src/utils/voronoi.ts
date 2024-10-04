@@ -1,8 +1,6 @@
 import Delaunator from 'delaunator';
 
-import { Cells, Vertices, Point } from '../types/grid.ts';
-
-import { createTypedArray } from './arrays.ts';
+import { Cell, Vertex, Point } from '../types/grid.ts';
 
 /**
  * Finds the circumcenter of the triangle identified by points a, b, and c. Taken from {@link https://en.wikipedia.org/wiki/Circumscribed_circle#Circumcenter_coordinates| Wikipedia}
@@ -134,56 +132,49 @@ export const voronoi = (
   delaunay: Delaunator<ArrayLike<number>>,
   points: Point[],
   pointsN: number
-) => {
-  const cells: Cells = {
-    indexes: createTypedArray({
-      maxValue: pointsN,
-      length: pointsN,
-    }),
+): { cells: Cell[]; vertices: Vertex[] } => {
+  const cells: Cell[] = Array.from({ length: pointsN }, () => ({
     vertices: [],
     adjacentCells: [],
-    nearBorderCells: [],
-    heights: new Uint8Array(),
-    features: new Uint16Array(),
-    types: [],
-    temperatures: new Int8Array(),
-    precipitation: new Uint8Array(),
-    waterFlux: new Uint16Array(),
-    rivers: new Uint16Array(),
-    confluences: new Uint8Array(),
-  };
-  const vertices: Vertices = { coordinates: [], neighbours: [], adjacent: [] };
+    isNearBorder: false,
+  }));
+  const vertices: Vertex[] = Array.from(
+    { length: delaunay.triangles.length },
+    () => ({
+      adjacent: [0, 0, 0],
+      coordinates: [0, 0],
+      neighbours: [],
+    })
+  );
 
   // Half-edges are the indices into the delaunator outputs:
   // delaunay.triangles[e] gives the point ID where the half-edge starts
   // delaunay.halfedges[e] returns either the opposite half-edge in the adjacent triangle, or -1 if there's not an adjacent triangle.
   for (let e = 0; e < delaunay.triangles.length; e++) {
     const p = delaunay.triangles[nextHalfedge(e)];
-    if (p < pointsN && !cells.adjacentCells[p]) {
+    if (p < pointsN && !cells[p].adjacentCells.length) {
       const edges = edgesAroundPoint(delaunay, e);
 
       // cell: adjacent vertex
-      cells.vertices[p] = edges.map(e => triangleOfEdge(e));
+      cells[p].vertices = edges.map(e => triangleOfEdge(e));
       // cell: adjacent valid cells
-      cells.adjacentCells[p] = edges
+      cells[p].adjacentCells = edges
         .map(e => delaunay.triangles[e])
         .filter(c => c < pointsN);
       // cell: is border
-      cells.nearBorderCells[p] = edges.length > cells.adjacentCells[p].length;
+      cells[p].isNearBorder = edges.length > cells[p].adjacentCells.length;
     }
 
     const t = triangleOfEdge(e);
-    if (!vertices.coordinates[t]) {
+    if (!vertices[t].coordinates.some(val => val > 0)) {
       // vertex: coordinates
-      vertices.coordinates[t] = triangleCenter(delaunay, points, t);
+      vertices[t].coordinates = triangleCenter(delaunay, points, t);
       // vertex: adjacent vertices
-      vertices.neighbours[t] = trianglesAdjacentToTriangle(delaunay, t);
+      vertices[t].neighbours = trianglesAdjacentToTriangle(delaunay, t);
       // vertex: adjacent cells
-      vertices.adjacent[t] = pointsOfTriangle(delaunay, t);
+      vertices[t].adjacent = pointsOfTriangle(delaunay, t);
     }
   }
-
-  cells.indexes = cells.indexes.map((_, i) => i); // array of indexes
 
   return { cells, vertices };
 };

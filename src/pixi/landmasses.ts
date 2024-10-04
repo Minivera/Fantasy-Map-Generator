@@ -1,234 +1,116 @@
-import { PackedGrid } from '../types/grid.ts';
-import { Application, Assets, Graphics, GraphicsContext } from 'pixi.js';
+import { Application, Graphics } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
+import * as d3Array from 'd3-array';
+import * as d3Scale from 'd3-scale';
+import * as d3ScaleChromatic from 'd3-scale-chromatic';
 
-import {
-  cellsColor,
-  coastlineColor,
-  oceanColor,
-  oceanLayerColor,
-} from '../data/colors.ts';
-import { roundNumber } from '../utils/math.ts';
-import {
-  drawD3ClosedCurve,
-  drawD3ClosedPath,
-  drawDebugPath,
-} from './drawUtils.ts';
-
-import oceanPattern from '../assets/ocean_pattern1.png';
-
-const oceanTexture = await Assets.load(oceanPattern);
-
-const debugCoastlines = false;
-
-const drawOcean = (
-  app: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {
-  const textureContext = new GraphicsContext()
-    .rect(0, 0, oceanTexture.width, oceanTexture.height)
-    .texture(
-      oceanTexture,
-      0xffffff,
-      0,
-      0,
-      oceanTexture.width,
-      oceanTexture.height
-    )
-    .fill({ color: oceanColor, alpha: 0.75 });
-
-  // Render the base ocean on the map
-  let x = 0;
-  let y = 0;
-  while (y <= app.screen.height) {
-    const oceanCell = new Graphics(textureContext);
-    oceanCell.x = x;
-    oceanCell.y = y;
-
-    x += oceanTexture.width;
-    if (x > app.screen.width) {
-      x = 0;
-      y += oceanTexture.height;
-    }
-
-    container.addChild(oceanCell);
-  }
-
-  // Next, draw the layers for the continents outline.
-  const layers = new Graphics();
-  const opacity = roundNumber(
-    0.4 / Object.keys(physicalMap.cells.pathPoints.oceanLayers).length,
-    2
-  );
-  Object.values(physicalMap.cells.pathPoints.oceanLayers).forEach(paths => {
-    paths.forEach(path => {
-      drawD3ClosedCurve(layers, path).fill({
-        color: oceanLayerColor,
-        alpha: opacity,
-      });
-
-      if (debugCoastlines) {
-        drawDebugPath(layers, path);
-      }
-    });
-  });
-
-  container.addChild(layers);
-};
-const drawCoastline = (
-  _: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {
-  const coastlines = new Graphics();
-
-  physicalMap.cells.pathPoints.coastlines.forEach(path => {
-    coastlines
-      .stroke({
-        width: 1,
-        color: coastlineColor,
-        alpha: 1,
-      })
-      .fill('white');
-
-    drawD3ClosedPath(coastlines, path);
-
-    if (debugCoastlines) {
-      drawDebugPath(coastlines, path);
-    }
-  });
-
-  container.addChild(coastlines);
-};
-
-const drawCells = (
-  _: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {
-  const cells = new Graphics();
-
-  // Start by drawing all the cells
-  physicalMap.cells.vertices.forEach(cellVertices => {
-    // Drawing the cell itself, only the borders
-    cells.stroke({
-      width: 0.1,
-      color: cellsColor,
-      alpha: 1,
-    });
-
-    const [start, ...rest] = cellVertices;
-    cells.moveTo(
-      physicalMap.vertices.coordinates[start][0],
-      physicalMap.vertices.coordinates[start][1]
-    );
-
-    rest.forEach(vertex => {
-      cells.lineTo(
-        physicalMap.vertices.coordinates[vertex][0],
-        physicalMap.vertices.coordinates[vertex][1]
-      );
-    });
-
-    cells.closePath();
-  });
-
-  container.addChild(cells);
-};
-
-const drawBiomes = (
-  app: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {};
-
-const drawHeightmap = (
-  app: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {};
-
-const drawHeightIndicators = (
-  app: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {};
-
-const drawTemperatureIndicators = (
-  app: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {};
-
-const drawLakes = (
-  app: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {};
-
-const drawRivers = (
-  app: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {};
-
-const drawRelief = (
-  app: Application,
-  container: Viewport,
-  physicalMap: PackedGrid
-) => {};
+import { PhysicalMap } from '../types/map.ts';
+import { heightmapColors } from '../data/colors.ts';
+import { drawVertexPath } from './drawUtils.ts';
 
 interface landmassesOptions {
-  shouldDrawCells?: boolean;
-  shouldDrawBiomes?: boolean;
-  shouldDrawHeightmap?: boolean;
-  shouldDrawHeightIndicators?: boolean;
-  shouldDrawTemperatureIndicators?: boolean;
-  shouldDrawLakes?: boolean;
-  shouldDrawRivers?: boolean;
-  shouldDrawRelief?: boolean;
+  shouldDrawCellHeight?: boolean;
+  shouldDrawCellHeightType?: boolean;
+  shouldDrawCellTemperature?: boolean;
 }
 
 export const drawLandmasses = (
-  app: Application,
+  _app: Application,
   container: Viewport,
-  physicalMap: PackedGrid,
+  physicalMap: PhysicalMap,
   {
-    shouldDrawCells = false,
-    shouldDrawBiomes = false,
-    shouldDrawHeightmap = false,
-    shouldDrawHeightIndicators = false,
-    shouldDrawTemperatureIndicators = false,
-    shouldDrawLakes = false,
-    shouldDrawRivers = false,
-    shouldDrawRelief = false,
+    shouldDrawCellHeight = false,
+    shouldDrawCellHeightType = false,
+    shouldDrawCellTemperature = false,
   }: landmassesOptions
 ) => {
-  drawOcean(app, container, physicalMap);
-  drawCoastline(app, container, physicalMap);
-  if (shouldDrawBiomes) {
-    drawBiomes(app, container, physicalMap);
+  if (shouldDrawCellHeight) {
+    const cellHeights = new Graphics();
+
+    const colorSchemeLand = d3Scale.scaleSequential(
+      d3ScaleChromatic.interpolateRdYlGn
+    );
+    const colorSchemeWater = d3Scale.scaleSequential(
+      d3ScaleChromatic.interpolateGnBu
+    );
+    physicalMap.heightmap.heights.forEach((height, i) => {
+      const cell = physicalMap.grid.cells[i];
+      const color =
+        height.height <= 20
+          ? colorSchemeWater(1 - ((height.height - 5) * 100) / 20 / 100)
+          : colorSchemeLand(1 - (height.height * 100) / 80 / 100);
+
+      // Drawing the cell content only, not the borders
+      cellHeights.fill({
+        color,
+        alpha: 1,
+      });
+
+      drawVertexPath(cellHeights, physicalMap.grid.vertices, cell.vertices);
+    });
+
+    container.addChild(cellHeights);
   }
-  if (shouldDrawHeightmap) {
-    drawHeightmap(app, container, physicalMap);
+
+  if (shouldDrawCellHeightType) {
+    const cellHeightsTypes = new Graphics();
+
+    physicalMap.heightmap.heights.forEach((height, i) => {
+      const cell = physicalMap.grid.cells[i];
+      const color = heightmapColors[height.type];
+
+      // Drawing the cell content only, not the borders
+      cellHeightsTypes.fill({
+        color,
+        alpha: 1,
+      });
+
+      drawVertexPath(
+        cellHeightsTypes,
+        physicalMap.grid.vertices,
+        cell.vertices
+      );
+    });
+
+    container.addChild(cellHeightsTypes);
   }
-  if (shouldDrawHeightIndicators) {
-    drawHeightIndicators(app, container, physicalMap);
-  }
-  if (shouldDrawTemperatureIndicators) {
-    drawTemperatureIndicators(app, container, physicalMap);
-  }
-  if (shouldDrawLakes) {
-    drawLakes(app, container, physicalMap);
-  }
-  if (shouldDrawRivers) {
-    drawRivers(app, container, physicalMap);
-  }
-  if (shouldDrawRelief) {
-    drawRelief(app, container, physicalMap);
-  }
-  if (shouldDrawCells) {
-    drawCells(app, container, physicalMap);
+  if (shouldDrawCellTemperature) {
+    const cellHeights = new Graphics();
+
+    const colorSchemeTemperature = d3Scale.scaleSequential(
+      d3ScaleChromatic.interpolateBuGn
+    );
+    const minTemp = d3Array.min(
+      physicalMap.featuresMap.features.map(el => el.temperature)
+    ) as number;
+    const maxTemp = d3Array.max(
+      physicalMap.featuresMap.features.map(el => el.temperature)
+    ) as number;
+    console.log(
+      physicalMap.featuresMap.features.map(
+        feature =>
+          ((feature.temperature + (minTemp < 0 ? -minTemp : 0)) * 100) /
+          (maxTemp - minTemp) /
+          100
+      )
+    );
+    physicalMap.featuresMap.features.forEach((feature, i) => {
+      const cell = physicalMap.grid.cells[i];
+      const color = colorSchemeTemperature(
+        ((feature.temperature + (minTemp < 0 ? -minTemp : 0)) * 100) /
+          (maxTemp - minTemp) /
+          100
+      );
+
+      // Drawing the cell content only, not the borders
+      cellHeights.fill({
+        color,
+        alpha: 1,
+      });
+
+      drawVertexPath(cellHeights, physicalMap.grid.vertices, cell.vertices);
+    });
+
+    container.addChild(cellHeights);
   }
 };
