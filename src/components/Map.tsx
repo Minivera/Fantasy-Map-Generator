@@ -30,11 +30,13 @@ export const Map: FunctionComponent<MapProps> = ({
   const [whatToRender, setWhatToRender] = useState<
     Parameters<typeof drawLandmasses>[3] & Parameters<typeof drawCells>[3]
   >({
-    shouldDrawCells: true,
+    shouldDrawCells: false,
     shouldDrawCellHeight: true,
     shouldDrawCellHeightType: false,
     shouldDrawCellTemperature: false,
+    shouldDrawCellPrecipitation: false,
   });
+  const [cellMessage, setCellMessage] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const generateStage = () => {
@@ -71,7 +73,13 @@ export const Map: FunctionComponent<MapProps> = ({
       child => viewport.current?.removeChild(child)
     );
 
-    drawLandmasses(app, viewport.current, physicalMap, whatToRender);
+    drawLandmasses(
+      app,
+      viewport.current,
+      physicalMap,
+      whatToRender,
+      setCellMessage
+    );
     drawCells(app, viewport.current, physicalMap, whatToRender);
   }, [app, !viewport.current, physicalMap, whatToRender]);
 
@@ -146,12 +154,39 @@ export const Map: FunctionComponent<MapProps> = ({
             }
             checked={whatToRender.shouldDrawCellTemperature}
           />
+          <br />
+          <br />
+          <label htmlFor="precipitationlevels">
+            Render precipitation levels:
+          </label>
+          <input
+            type="checkbox"
+            id="precipitationlevels"
+            onChange={() =>
+              setWhatToRender(options => ({
+                ...options,
+                shouldDrawCellPrecipitation:
+                  !options.shouldDrawCellPrecipitation,
+              }))
+            }
+            checked={whatToRender.shouldDrawCellPrecipitation}
+          />
         </fieldset>
         <div style={{ marginTop: 4, padding: 8 }}>
           <button onClick={onRequestGeneration}>Regenerate</button>
         </div>
       </div>
       <div ref={containerRef} />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 5,
+          right: 5,
+          backgroundColor: 'white',
+        }}
+      >
+        <p>{cellMessage}</p>
+      </div>
     </div>
   );
 };

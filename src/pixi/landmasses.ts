@@ -1,4 +1,4 @@
-import { Application, Graphics } from 'pixi.js';
+import { Application, FederatedPointerEvent, Graphics } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import * as d3Array from 'd3-array';
 import * as d3Scale from 'd3-scale';
@@ -6,12 +6,17 @@ import * as d3ScaleChromatic from 'd3-scale-chromatic';
 
 import { PhysicalMap } from '../types/map.ts';
 import { heightmapColors } from '../data/colors.ts';
+import { findGridCellUnderPoint } from '../utils/grid.ts';
+
 import { drawVertexPath } from './drawUtils.ts';
+import { roundNumber } from '../utils/math.ts';
+import { LandType } from '../types/featuresMap.ts';
 
 interface landmassesOptions {
   shouldDrawCellHeight?: boolean;
   shouldDrawCellHeightType?: boolean;
   shouldDrawCellTemperature?: boolean;
+  shouldDrawCellPrecipitation?: boolean;
 }
 
 export const drawLandmasses = (
@@ -22,8 +27,41 @@ export const drawLandmasses = (
     shouldDrawCellHeight = false,
     shouldDrawCellHeightType = false,
     shouldDrawCellTemperature = false,
-  }: landmassesOptions
+    shouldDrawCellPrecipitation = false,
+  }: landmassesOptions,
+  onCellHover: (message?: string) => void
 ) => {
+  const getCellUnderCursor = (event: FederatedPointerEvent) => {
+    const position = container.toWorld(event.client);
+    const found = findGridCellUnderPoint(
+      [position.x, position.y],
+      physicalMap.grid
+    );
+    if (!found) {
+      return undefined;
+    }
+
+    return found[0];
+  };
+
+  const getHeightUnderCursor = (event: FederatedPointerEvent) => {
+    const found = getCellUnderCursor(event);
+    if (!found) {
+      return undefined;
+    }
+
+    return physicalMap.heightmap.heights[found];
+  };
+
+  const getFeatureUnderCursor = (event: FederatedPointerEvent) => {
+    const found = getCellUnderCursor(event);
+    if (!found) {
+      return undefined;
+    }
+
+    return physicalMap.featuresMap.features[found];
+  };
+
   if (shouldDrawCellHeight) {
     const cellHeights = new Graphics();
 
@@ -40,14 +78,30 @@ export const drawLandmasses = (
           ? colorSchemeWater(1 - ((height.height - 5) * 100) / 20 / 100)
           : colorSchemeLand(1 - (height.height * 100) / 80 / 100);
 
+      drawVertexPath(cellHeights, physicalMap.grid.vertices, cell.vertices);
+
       // Drawing the cell content only, not the borders
       cellHeights.fill({
         color,
         alpha: 1,
       });
-
-      drawVertexPath(cellHeights, physicalMap.grid.vertices, cell.vertices);
     });
+
+    cellHeights.on('mousemove', event => {
+      const height = getHeightUnderCursor(event);
+      const h = height?.height;
+      onCellHover(
+        h
+          ? `Elevation: ${Math.floor(
+              h >= 20 ? Math.pow(h - 18, 2) : ((h - 20) / h) * 50
+            )} m`
+          : undefined
+      );
+    });
+    cellHeights.on('mouseleave', () => {
+      onCellHover(undefined);
+    });
+    cellHeights.eventMode = 'static';
 
     container.addChild(cellHeights);
   }
@@ -59,26 +113,43 @@ export const drawLandmasses = (
       const cell = physicalMap.grid.cells[i];
       const color = heightmapColors[height.type];
 
-      // Drawing the cell content only, not the borders
-      cellHeightsTypes.fill({
-        color,
-        alpha: 1,
-      });
-
       drawVertexPath(
         cellHeightsTypes,
         physicalMap.grid.vertices,
         cell.vertices
       );
+
+      // Drawing the cell content only, not the borders
+      cellHeightsTypes.fill({
+        color,
+        alpha: 1,
+      });
     });
+
+    cellHeightsTypes.on('mousemove', event => {
+      const height = getHeightUnderCursor(event);
+      onCellHover(
+        height
+          ? `Elevation type: ${
+              height.type.charAt(0).toUpperCase() +
+              height.type.slice(1).toLowerCase()
+            }`
+          : undefined
+      );
+    });
+    cellHeightsTypes.on('mouseleave', () => {
+      onCellHover(undefined);
+    });
+    cellHeightsTypes.eventMode = 'static';
 
     container.addChild(cellHeightsTypes);
   }
+
   if (shouldDrawCellTemperature) {
-    const cellHeights = new Graphics();
+    const cellTemperatures = new Graphics();
 
     const colorSchemeTemperature = d3Scale.scaleSequential(
-      d3ScaleChromatic.interpolateBuGn
+      d3ScaleChromatic.interpolateGreens
     );
     const minTemp = d3Array.min(
       physicalMap.featuresMap.features.map(el => el.temperature)
@@ -86,14 +157,6 @@ export const drawLandmasses = (
     const maxTemp = d3Array.max(
       physicalMap.featuresMap.features.map(el => el.temperature)
     ) as number;
-    console.log(
-      physicalMap.featuresMap.features.map(
-        feature =>
-          ((feature.temperature + (minTemp < 0 ? -minTemp : 0)) * 100) /
-          (maxTemp - minTemp) /
-          100
-      )
-    );
     physicalMap.featuresMap.features.forEach((feature, i) => {
       const cell = physicalMap.grid.cells[i];
       const color = colorSchemeTemperature(
@@ -102,15 +165,78 @@ export const drawLandmasses = (
           100
       );
 
+      drawVertexPath(
+        cellTemperatures,
+        physicalMap.grid.vertices,
+        cell.vertices
+      );
+
       // Drawing the cell content only, not the borders
-      cellHeights.fill({
+      cellTemperatures.fill({
         color,
         alpha: 1,
       });
-
-      drawVertexPath(cellHeights, physicalMap.grid.vertices, cell.vertices);
     });
 
-    container.addChild(cellHeights);
+    cellTemperatures.on('mousemove', event => {
+      const feature = getFeatureUnderCursor(event);
+      onCellHover(
+        feature
+          ? `Temperature: ${roundNumber(feature.temperature)} °C`
+          : undefined
+      );
+    });
+    cellTemperatures.on('mouseleave', () => {
+      onCellHover(undefined);
+    });
+    cellTemperatures.eventMode = 'static';
+
+    container.addChild(cellTemperatures);
+  }
+
+  if (shouldDrawCellPrecipitation) {
+    const cellPrecipitation = new Graphics();
+
+    const colorSchemePrecipitation = d3Scale.scaleSequential(
+      d3ScaleChromatic.interpolateBlues
+    );
+    const maxPrecipitation = d3Array.max(
+      physicalMap.featuresMap.features.map(el => el.precipitation)
+    ) as number;
+    physicalMap.featuresMap.features.forEach((feature, i) => {
+      if (feature.type !== LandType.LAND) {
+        return;
+      }
+
+      const cell = physicalMap.grid.cells[i];
+      const color = colorSchemePrecipitation(
+        (feature.precipitation * 100) / maxPrecipitation / 100
+      );
+
+      drawVertexPath(
+        cellPrecipitation,
+        physicalMap.grid.vertices,
+        cell.vertices
+      );
+
+      // Drawing the cell content only, not the borders
+      cellPrecipitation.fill({
+        color,
+        alpha: 1,
+      });
+    });
+
+    cellPrecipitation.on('mousemove', event => {
+      const feature = getFeatureUnderCursor(event);
+      onCellHover(
+        feature ? `Precipitation: ${feature.precipitation * 100} mm` : undefined
+      );
+    });
+    cellPrecipitation.on('mouseleave', () => {
+      onCellHover(undefined);
+    });
+    cellPrecipitation.eventMode = 'static';
+
+    container.addChild(cellPrecipitation);
   }
 };

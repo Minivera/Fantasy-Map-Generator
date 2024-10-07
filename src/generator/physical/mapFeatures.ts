@@ -219,6 +219,7 @@ export const markFeatures = (
       temperatureType: TemperatureType.ARCTIC,
 
       waterLevel: 0,
+      precipitation: 0,
       waterType: WetnessType.DRY,
       vegetationType: VegetationType.DESERT,
     })),

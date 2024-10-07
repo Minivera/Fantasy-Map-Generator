@@ -22,13 +22,6 @@ export const drawCells = (
 
   // Start by drawing all the cells
   physicalMap.grid.cells.forEach(cell => {
-    // Drawing the cell itself, only the borders
-    cells.stroke({
-      width: 0.1,
-      color: cellsColor,
-      alpha: 1,
-    });
-
     const [start, ...rest] = cell.vertices;
     cells.moveTo(
       physicalMap.grid.vertices[start].coordinates[0],
@@ -43,6 +36,13 @@ export const drawCells = (
     });
 
     cells.closePath();
+
+    // Drawing the cell itself, only the borders
+    cells.stroke({
+      width: 0.1,
+      color: cellsColor,
+      alpha: 1,
+    });
   });
 
   container.addChild(cells);
