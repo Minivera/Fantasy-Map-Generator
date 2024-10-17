@@ -33,6 +33,26 @@ export const drawCells = (
         physicalMap.grid.vertices[vertex].coordinates[0],
         physicalMap.grid.vertices[vertex].coordinates[1]
       );
+
+      let color = cellsColor;
+      if (
+        physicalMap.grid.vertices[vertex].adjacent.some(
+          e => e > physicalMap.grid.cells.length
+        )
+      ) {
+        color = '#ff0000';
+      } else if (
+        physicalMap.grid.vertices[vertex].neighbours.some(e => e < 0)
+      ) {
+        color = '#00ff00';
+      }
+
+      // Drawing the cell itself, only the borders
+      cells.stroke({
+        width: 0.1,
+        color,
+        alpha: 1,
+      });
     });
 
     cells.closePath();

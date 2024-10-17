@@ -5,15 +5,19 @@ import * as d3Scale from 'd3-scale';
 import * as d3ScaleChromatic from 'd3-scale-chromatic';
 
 import { PhysicalMap } from '../types/map.ts';
-import { heightmapColors } from '../data/colors.ts';
+import { heightmapColors, landColors } from '../data/colors.ts';
 import { findGridCellUnderPoint } from '../utils/grid.ts';
 
 import { drawVertexPath } from './drawUtils.ts';
 import { roundNumber } from '../utils/math.ts';
 import { LandType } from '../types/featuresMap.ts';
+import { coastlineColor } from '../../old-pixi/src/data/colors.ts';
+import { drawD3ClosedPath } from '../../old-pixi/src/pixi/drawUtils.ts';
 
 interface landmassesOptions {
+  shouldDrawCoastlines?: boolean;
   shouldDrawCellHeight?: boolean;
+  shouldDrawCellLandType?: boolean;
   shouldDrawCellHeightType?: boolean;
   shouldDrawCellTemperature?: boolean;
   shouldDrawCellPrecipitation?: boolean;
@@ -24,7 +28,9 @@ export const drawLandmasses = (
   container: Viewport,
   physicalMap: PhysicalMap,
   {
+    shouldDrawCoastlines = false,
     shouldDrawCellHeight = false,
+    shouldDrawCellLandType = false,
     shouldDrawCellHeightType = false,
     shouldDrawCellTemperature = false,
     shouldDrawCellPrecipitation = false,
@@ -104,6 +110,41 @@ export const drawLandmasses = (
     cellHeights.eventMode = 'static';
 
     container.addChild(cellHeights);
+  }
+
+  if (shouldDrawCellLandType) {
+    const cellLandTypes = new Graphics();
+
+    physicalMap.featuresMap.features.forEach((feature, i) => {
+      const cell = physicalMap.grid.cells[i];
+      const color = landColors[feature.type];
+
+      drawVertexPath(cellLandTypes, physicalMap.grid.vertices, cell.vertices);
+
+      // Drawing the cell content only, not the borders
+      cellLandTypes.fill({
+        color,
+        alpha: 1,
+      });
+    });
+
+    cellLandTypes.on('mousemove', event => {
+      const feature = getFeatureUnderCursor(event);
+      onCellHover(
+        feature
+          ? `Land type: ${
+              feature.type.charAt(0).toUpperCase() +
+              feature.type.slice(1).toLowerCase()
+            }`
+          : undefined
+      );
+    });
+    cellLandTypes.on('mouseleave', () => {
+      onCellHover(undefined);
+    });
+    cellLandTypes.eventMode = 'static';
+
+    container.addChild(cellLandTypes);
   }
 
   if (shouldDrawCellHeightType) {
@@ -238,5 +279,21 @@ export const drawLandmasses = (
     cellPrecipitation.eventMode = 'static';
 
     container.addChild(cellPrecipitation);
+  }
+
+  if (shouldDrawCoastlines) {
+    const coastlines = new Graphics();
+
+    physicalMap.heightmap.landmasses.forEach(landmass => {
+      drawD3ClosedPath(coastlines, landmass.coastline);
+
+      coastlines.stroke({
+        width: 1,
+        color: coastlineColor,
+        alpha: 1,
+      });
+    });
+
+    container.addChild(coastlines);
   }
 };

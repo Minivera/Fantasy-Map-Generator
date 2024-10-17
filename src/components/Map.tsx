@@ -31,7 +31,9 @@ export const Map: FunctionComponent<MapProps> = ({
     Parameters<typeof drawLandmasses>[3] & Parameters<typeof drawCells>[3]
   >({
     shouldDrawCells: false,
+    shouldDrawCoastlines: true,
     shouldDrawCellHeight: true,
+    shouldDrawCellLandType: false,
     shouldDrawCellHeightType: false,
     shouldDrawCellTemperature: false,
     shouldDrawCellPrecipitation: false,
@@ -114,6 +116,20 @@ export const Map: FunctionComponent<MapProps> = ({
         </fieldset>
         <fieldset>
           <legend>Physical map render options</legend>
+          <label htmlFor="coaslines">Render Coastlines:</label>
+          <input
+            type="checkbox"
+            id="coaslines"
+            onChange={() =>
+              setWhatToRender(options => ({
+                ...options,
+                shouldDrawCoastlines: !options.shouldDrawCoastlines,
+              }))
+            }
+            checked={whatToRender.shouldDrawCoastlines}
+          />
+          <br />
+          <br />
           <label htmlFor="heightmap">Render Heightmap:</label>
           <input
             type="checkbox"
@@ -125,6 +141,20 @@ export const Map: FunctionComponent<MapProps> = ({
               }))
             }
             checked={whatToRender.shouldDrawCellHeight}
+          />
+          <br />
+          <br />
+          <label htmlFor="landtypegroups">Render Land type groups:</label>
+          <input
+            type="checkbox"
+            id="landtypegroups"
+            onChange={() =>
+              setWhatToRender(options => ({
+                ...options,
+                shouldDrawCellLandType: !options.shouldDrawCellLandType,
+              }))
+            }
+            checked={whatToRender.shouldDrawCellLandType}
           />
           <br />
           <br />

@@ -1,15 +1,17 @@
 import * as d3 from 'd3-array';
 
 import { Cell, Grid } from '../../types/grid.ts';
-import { HeightmapTemplate } from './heightmapTemplates.ts';
 import {
+  BiomeType,
+  ClimateType,
   FeaturesMap,
   LandType,
-  TemperatureType,
   VegetationType,
   WetnessType,
 } from '../../types/featuresMap.ts';
-import { Heightmap, HeightType } from '../../types/heightmap.ts';
+import { Heightmap } from '../../types/heightmap.ts';
+
+import { HeightmapTemplate } from './heightmapTemplates.ts';
 
 /**
  * Calculate cell-distance to coast for every cell given.
@@ -216,12 +218,13 @@ export const markFeatures = (
       distanceToCoast: 0,
 
       temperature: 0,
-      temperatureType: TemperatureType.ARCTIC,
-
       waterLevel: 0,
       precipitation: 0,
-      waterType: WetnessType.DRY,
-      vegetationType: VegetationType.DESERT,
+
+      climate: ClimateType.DRY,
+      wetness: WetnessType.DRY,
+      vegetation: VegetationType.DESERT,
+      biome: BiomeType.COLD_DESERT,
     })),
   };
 
@@ -229,22 +232,6 @@ export const markFeatures = (
     const isLand = heights[index].height >= 20;
     // true if feature touches map border
     const isBorder = cell.isNearBorder;
-
-    // Start by marking the height
-    let heightType = HeightType.OCEAN;
-    if (isLand && heights[index].height < 22) {
-      heightType = HeightType.COASTAL;
-    } else if (heights[index].height >= 22 && heights[index].height < 32) {
-      heightType = HeightType.FLATLAND;
-    } else if (heights[index].height >= 32 && heights[index].height < 38) {
-      heightType = HeightType.HILLS;
-    } else if (heights[index].height >= 38 && heights[index].height < 54) {
-      heightType = HeightType.PLATEAU;
-    } else if (heights[index].height >= 54) {
-      heightType = HeightType.MOUNTAIN;
-    }
-
-    heights[index].type = heightType;
 
     let type = LandType.LAND;
     if (!isLand) {

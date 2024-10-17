@@ -113,7 +113,7 @@ const passWind = (
       const precipitation = isPassable
         ? getPrecipitation(heightmap, modifier, humidity, current, next)
         : humidity;
-      features[current].precipitation += precipitation;
+      features[current].precipitation += Math.floor(precipitation);
       const evaporation = precipitation > 1.5 ? 1 : 0; // some humidity evaporates back to the atmosphere
       humidity = isPassable
         ? clamp(humidity - precipitation + evaporation, 0, maxPrec)
